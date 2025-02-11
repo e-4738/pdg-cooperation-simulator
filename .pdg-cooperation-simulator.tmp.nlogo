@@ -326,6 +326,7 @@ end
 to make-node-b-a [old-node]
   create-turtles 1 [
     make-node-turtle-attributes
+
     if old-node != nobody
       [ create-link-with old-node ;;[ set color green ]
         ; position the new node near its partner
