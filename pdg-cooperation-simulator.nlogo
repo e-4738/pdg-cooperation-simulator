@@ -26,9 +26,9 @@ globals [
   average-path-length                  ; average path length of the network
   clustering-coefficient-of-lattice    ; the clustering coefficient of the initial lattice
   average-path-length-of-lattice       ; average path length of the initial lattice
-  max-degree
-  min-degree
+
   mean-degree
+
   infinity                             ; a very large number.
                                        ; used to denote distance between two turtles which
                                        ; don't have a connected or unconnected path between them
@@ -294,8 +294,6 @@ to setup-barabasi-albert
   setup-count-all-strategies
   setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
 
-  set max-degree max [count link-neighbors] of turtles
-  set min-degree min [count link-neighbors] of turtles
   do-calculations-b-a
   set budget initial-wage * count turtles
   count-degree
@@ -837,35 +835,8 @@ to go
 
       ; replace the old employee with new one
       if (sick-counter >= patience or low-performance-counter >= patience) [
-        setup-generate-strategy    ; set the strategy of the employee
-        setup-generate-diligence   ; set the diligence of the employee
-        setup-set-strategy-label   ; prints the label for each employee based on their strategy
-
-        ; count newly generated strategy
-        set index strategy-index [ strategy ] of self
-        let tmp-item item index count-strategies
-        set count-strategies (replace-item index count-strategies (tmp-item + 1))
-
-        setup-set-basic-values-for-employee
-
-        ; penalization for initial training of new employee
-        set total-company-value total-company-value - (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
-        set tmp-fluct tmp-fluct + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
-
-        ; reset own history lists
-        let num-patches count turtles
-        set partner-history []
-        repeat num-patches [ set partner-history (fput false partner-history) ]
-        set partner-history-longer []
-        repeat num-patches [ set partner-history-longer (fput false partner-history-longer) ]
-
-        ;; reset neighbors perception of me
-        ask (turtle-set self link-neighbors) [                             ;; change history lists of neighboring turtles
-          set partner-history-longer (replace-item turtle-id partner-history false)
-          set partner-history (replace-item turtle-id partner-history false)
-        ]
+         leave-company
       ]
-
     ]
   ]
 
@@ -904,6 +875,28 @@ to go
 
   tick
 end
+
+to leave-company
+  let max-degree -1
+  let highest-degree-neighbor nobody
+  ask link-neighbors [
+    let current-degree [own-degree] of self
+    if current-degree > max-degree [
+      set max-degree current-degree
+      set highest-degree-neighbor self
+    ]
+  ]
+  if (highest-degree-neighbor != nobody) [
+    ask link-neighbors [
+      if (self != highest-degree-neighbor)[
+        create-link-with highest-degree-neighbor
+      ]
+    ]
+  ]
+
+  die
+end
+
 
 ; This function resets history of one patch in all history lists of all patches
 ; @coords is the index of patch in history lists
@@ -1750,7 +1743,7 @@ boss-reaction-time
 boss-reaction-time
 10
 250
-250.0
+80.0
 5
 1
 NIL
@@ -2089,7 +2082,7 @@ num-nodes
 num-nodes
 0
 100
-39.0
+53.0
 1
 1
 NIL
@@ -2104,7 +2097,7 @@ wiring-probability
 wiring-probability
 0
 1
-0.15
+0.07
 0.01
 1
 NIL
@@ -2313,7 +2306,7 @@ CHOOSER
 hub-strategy
 hub-strategy
 "default" "cooperate" "defect" "tit-for-tat" "tit-for-two-tats" "tit-for-tat-npm" "unforgiving" "pavlov"
-2
+0
 
 SLIDER
 14
