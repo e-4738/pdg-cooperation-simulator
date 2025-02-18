@@ -89,6 +89,7 @@ turtles-own [
   node-clustering-coefficient
   distance-from-other-turtles ; list of distances of this node from other turtles
 
+  fitness ; coefficient for Bianconi Barabasi algorthm
 ]
 
 links-own [
@@ -185,6 +186,12 @@ to setup-set-basic-values-for-employee
     stress-recolor-agent ; recolor the agent - based on his/her actual stress level
 end
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;; ERDOSI RENYI ;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+
 to setup-erdos-renyi
   clear-all
   set world-size num-nodes
@@ -199,22 +206,41 @@ to setup-erdos-renyi
   set budget initial-wage * count turtles
 end
 
-to setup-barabasi-albert
-  clear-all
-  set world-size num-nodes
-  resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
-  set init-value initial-wage * world-size
-  setup
-  setup-nodes-barabasi-albert
-  setup-count-all-strategies
-  setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
 
-  set max-degree max [count link-neighbors] of turtles
-  set min-degree min [count link-neighbors] of turtles
-  do-calculations-b-a
-  set budget initial-wage * count turtles
-  count-degree
+to setup-nodes-erdos-renyi
+  repeat num-nodes [
+    make-node-e-r
+  ]
+  wire-Erdos-Renyi
 end
+
+
+to make-node-e-r
+  create-turtles 1 [
+    make-node-turtle-attributes
+    setxy random-xcor random-ycor
+  ]
+end
+
+
+; A variant of the classic Erdos-Renyi where each possible pair of nodes
+; gets a chance to create a link between them with a specified probability.
+to wire-Erdos-Renyi
+  ask links [ die ]
+  ask turtles [
+    ask turtles with [ who > [ who ] of myself ] [
+      if random-float 1.0 < wiring-probability [
+        create-link-with myself
+
+      ]
+    ]
+  ]
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;; WATTS STROGATZ ;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 to setup-watts-strogatz
@@ -237,12 +263,44 @@ to setup-watts-strogatz
   set budget initial-wage * count turtles
 end
 
-to setup-nodes-erdos-renyi
+
+to setup-nodes-watts-strogatz
   repeat num-nodes [
-    make-node-e-r
+    make-node-w-s
   ]
-  wire-Erdos-Renyi
+  layout-circle (sort turtles) max-pxcor - 1
 end
+
+
+to make-node-w-s
+  create-turtles 1 [
+    make-node-turtle-attributes
+    setxy random-xcor random-ycor
+  ]
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;; BARABASI ALBERT ;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to setup-barabasi-albert
+  clear-all
+  set world-size num-nodes
+  resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
+  set init-value initial-wage * world-size
+  setup
+  setup-nodes-barabasi-albert
+  setup-count-all-strategies
+  setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
+
+  set max-degree max [count link-neighbors] of turtles
+  set min-degree min [count link-neighbors] of turtles
+  do-calculations-b-a
+  set budget initial-wage * count turtles
+  count-degree
+end
+
 
 to setup-nodes-barabasi-albert
   make-node-b-a nobody        ; first node, unattached
@@ -254,26 +312,18 @@ to setup-nodes-barabasi-albert
 end
 
 
-to setup-nodes-watts-strogatz
-  repeat num-nodes [
-    make-node-w-s
-  ]
-  layout-circle (sort turtles) max-pxcor - 1
-end
-
-; A variant of the classic Erdos-Renyi where each possible pair of nodes
-; gets a chance to create a link between them with a specified probability.
-to wire-Erdos-Renyi
-  ask links [ die ]
-  ask turtles [
-    ask turtles with [ who > [ who ] of myself ] [
-      if random-float 1.0 < wiring-probability [
-        create-link-with myself
-
+to make-node-b-a [old-node]
+  create-turtles 1 [
+    make-node-turtle-attributes
+    if old-node != nobody
+      [ create-link-with old-node ;;[ set color green ]
+        ; position the new node near its partner
+        move-to old-node
+        fd 8
       ]
-    ]
   ]
 end
+
 
 ; This code is the heart of the "preferential attachment" mechanism, and acts like
 ; a lottery where each node gets a ticket for every connection it already has.
@@ -283,6 +333,65 @@ end
 ; and than we pick one of the two ends of that link.
 to-report find-partner
   report [one-of both-ends] of one-of links
+end
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;; BIANCONI BARABASI ;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+to setup-bianconi-barabasi
+  clear-all
+  set world-size num-nodes
+  resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
+  set init-value initial-wage * world-size
+  setup
+  setup-nodes-bianconi-barabasi
+  setup-count-all-strategies
+  setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
+
+  set budget initial-wage * count turtles
+  count-degree
+
+end
+
+
+to setup-nodes-bianconi-barabasi
+  make-node-b-b nobody        ; first node, unattached
+  make-node-b-b turtle 0
+    repeat world-size - 2 [     ; 2 turtles are already created above
+    make-node-b-b find-partner-b-b ; find partner & use it as attachment
+    layout
+  ]
+end
+
+to make-node-b-b [old-node]
+  create-turtles 1 [
+    make-node-turtle-attributes
+    set fitness random-float 1.0
+    if old-node != nobody
+      [ create-link-with old-node ;;[ set color green ]
+        ; position the new node near its partner
+        move-to old-node
+        fd 8
+      ]
+  ]
+end
+
+
+to-report find-partner-b-b
+  let total random-float sum [(count link-neighbors) * fitness] of turtles
+  let node-partner nobody
+  ask turtles
+  [ let nc (count link-neighbors) * fitness
+    ;; if there's no winner yet...
+    if node-partner = nobody
+    [ ifelse nc > total
+        [ set node-partner self ]
+        [ set total total - nc ] ] ]
+  report node-partner
 end
 
 
@@ -309,38 +418,7 @@ to make-node-turtle-attributes
 end
 
 
-to make-node
-  create-turtles 1 [
-    make-node-turtle-attributes
-  ]
-end
 
-; used for creating a new node
-to make-node-e-r
-  create-turtles 1 [
-    make-node-turtle-attributes
-    setxy random-xcor random-ycor
-  ]
-end
-
-to make-node-b-a [old-node]
-  create-turtles 1 [
-    make-node-turtle-attributes
-    if old-node != nobody
-      [ create-link-with old-node ;;[ set color green ]
-        ; position the new node near its partner
-        move-to old-node
-        fd 8
-      ]
-  ]
-end
-
-to make-node-w-s
-  create-turtles 1 [
-    make-node-turtle-attributes
-    setxy random-xcor random-ycor
-  ]
-end
 
 ;;;;; RUN ;;;;;
 
@@ -1607,7 +1685,7 @@ stress-regen
 stress-regen
 0
 2
-0.65
+0.425
 0.025
 1
 NIL
@@ -1996,7 +2074,7 @@ penalisation-for-fluctuation
 penalisation-for-fluctuation
 0
 12
-2.0
+7.0
 1
 1
 NIL
@@ -2026,7 +2104,7 @@ wiring-probability
 wiring-probability
 0
 1
-0.12
+0.15
 0.01
 1
 NIL
@@ -2041,7 +2119,7 @@ rewiring-probability
 rewiring-probability
 0
 1
-0.83
+0.05
 0.01
 1
 NIL
@@ -2235,7 +2313,7 @@ CHOOSER
 hub-strategy
 hub-strategy
 "default" "cooperate" "defect" "tit-for-tat" "tit-for-two-tats" "tit-for-tat-npm" "unforgiving" "pavlov"
-1
+2
 
 SLIDER
 14
@@ -2246,7 +2324,7 @@ defect-strategy
 defect-strategy
 0
 1
-0.0
+0.57
 0.01
 1
 NIL
@@ -2261,7 +2339,7 @@ cooperate-strategy
 cooperate-strategy
 0
 1
-0.85
+0.65
 0.01
 1
 NIL
