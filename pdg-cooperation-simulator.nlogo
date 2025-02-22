@@ -40,6 +40,8 @@ globals [
 
 
   tmp-fluct
+
+  current-topology        ;remembering the current topology to choose method for linking new employee to an existing graph structure
 ]
 
 turtles-own [
@@ -194,6 +196,7 @@ end
 
 to setup-erdos-renyi
   clear-all
+  set current-topology "erdos-renyi"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -245,6 +248,7 @@ end
 
 to setup-watts-strogatz
   clear-all
+  set current-topology "watts-strogatz"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -286,6 +290,7 @@ end
 
 to setup-barabasi-albert
   clear-all
+  set current-topology "barabasi-albert"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -342,6 +347,7 @@ end
 
 to setup-bianconi-barabasi
   clear-all
+  set current-topology "bianconi-barabasi"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -835,7 +841,10 @@ to go
 
       ; replace the old employee with new one
       if (sick-counter >= patience or low-performance-counter >= patience) [
-         leave-company
+
+        ifelse (random-float 1.0 < 0.8)
+          [leave-company]
+          [replace-employee index]
       ]
     ]
   ]
@@ -873,8 +882,62 @@ to go
     set budget budget-new
   ]
 
+  if (ticks mod 100 = 0)[
+   ; hire-new-employee
+  ]
+
   tick
 end
+
+
+to hire-new-employee
+
+  let length-of-partner-history length [partner-history] of one-of turtles
+
+  if current-topology = "erdos-renyi" [
+    create-turtles 1 [
+      make-node-turtle-attributes
+      ask other turtles [
+        if random-float 1.0 < wiring-probability [
+          create-link-with myself
+        ]
+      ]
+    ]
+  ]
+
+  if current-topology = "watts-strogatz" [
+    make-node-w-s
+  ]
+
+  if current-topology = "barabasi-albert" [
+    make-node-b-a find-partner
+  ]
+
+  if current-topology = "bianconi-barabasi" [
+    make-node-b-b find-partner-b-b
+  ]
+
+  layout
+  setup-count-all-strategies
+
+  let default-history []
+  repeat length-of-partner-history [set default-history (fput false default-history)]
+  repeat length-of-partner-history [set default-history (fput false default-history)]
+
+  ask max-one-of turtles [turtle-id] [
+    set partner-history default-history
+    set partner-history-longer default-history
+    set partner-defected? false
+  ]
+
+  ask turtles [
+    set partner-history (lput false partner-history)
+    set partner-history-longer (lput false partner-history-longer)
+  ]
+
+end
+
+
 
 to leave-company
   let max-degree -1
@@ -895,6 +958,40 @@ to leave-company
   ]
 
   die
+end
+
+
+to replace-employee [index]
+
+  let partner-history-length length partner-history
+  let partner-history-longer-length length partner-history-longer
+
+  setup-generate-strategy    ; set the strategy of the employee
+  setup-generate-diligence   ; set the diligence of the employee
+  setup-set-strategy-label   ; prints the label for each employee based on their strategy
+
+  ; count newly generated strategy
+  set index strategy-index [ strategy ] of self
+  let tmp-item item index count-strategies
+  set count-strategies (replace-item index count-strategies (tmp-item + 1))
+
+  setup-set-basic-values-for-employee
+
+  ; penalization for initial training of new employee
+  set total-company-value total-company-value - (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
+  set tmp-fluct tmp-fluct + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
+
+  ; reset own history lists
+  set partner-history []
+  repeat partner-history-length [ set partner-history (fput false partner-history) ]
+  set partner-history-longer []
+  repeat partner-history-longer-length [ set partner-history-longer (fput false partner-history-longer) ]
+
+  ;; reset neighbors perception of me
+  ask (turtle-set self link-neighbors) [                             ;; change history lists of neighboring turtles
+    set partner-history-longer (replace-item turtle-id partner-history false)
+    set partner-history (replace-item turtle-id partner-history false)
+  ]
 end
 
 
@@ -2082,7 +2179,7 @@ num-nodes
 num-nodes
 0
 100
-53.0
+65.0
 1
 1
 NIL
@@ -2097,7 +2194,7 @@ wiring-probability
 wiring-probability
 0
 1
-0.07
+0.71
 0.01
 1
 NIL
@@ -2317,7 +2414,7 @@ defect-strategy
 defect-strategy
 0
 1
-0.57
+0.55
 0.01
 1
 NIL
@@ -2332,7 +2429,7 @@ cooperate-strategy
 cooperate-strategy
 0
 1
-0.65
+0.0
 0.01
 1
 NIL
@@ -2392,7 +2489,7 @@ tit-for-tat-npm-strategy
 tit-for-tat-npm-strategy
 0
 1
-0.13
+0.23
 0.01
 1
 NIL
