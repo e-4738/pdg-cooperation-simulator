@@ -1,3 +1,5 @@
+extensions [ nw ]
+
 ;;;;; VARIABLES ;;;;;
 
 globals [
@@ -37,7 +39,6 @@ globals [
   rewire-all?
 
   sum-of-performance-new  ; counts the sum of performances of all turtles (it is global because of code effectivity)
-
 
   tmp-fluct
 
@@ -92,6 +93,7 @@ turtles-own [
   distance-from-other-turtles ; list of distances of this node from other turtles
 
   fitness ; coefficient for Bianconi Barabasi algorthm
+  group
 ]
 
 links-own [
@@ -189,6 +191,30 @@ to setup-set-basic-values-for-employee
 end
 
 
+; Sets common attributes for each turtle
+to make-node-turtle-attributes
+  set turtle-id who
+  set color white
+  ; initialize variables for each turtle
+  setup-generate-strategy  ; set the strategy of the employee
+  setup-generate-diligence   ; set the diligence of the employee
+  setup-set-strategy-label ; prints the label for each employee based on their strategy
+
+  ; set all basic values for each employee
+  set productivity random-normal mean-value-productivity std-deviation-productivity ; set productivity mean-value
+  set stress-limit round random-normal mean-value-stress-limit std-deviation-stress-limit
+  set is-sick? false
+  set sick-counter 0
+  set own-performance 100
+  set low-performance-counter 0
+  set number-of-defects 0
+  set number-of-cooperation 0
+  set label-color red
+  set effort initial-effort
+end
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;; ERDOSI RENYI ;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;
@@ -234,7 +260,6 @@ to wire-Erdos-Renyi
     ask turtles with [ who > [ who ] of myself ] [
       if random-float 1.0 < wiring-probability [
         create-link-with myself
-
       ]
     ]
   ]
@@ -399,29 +424,111 @@ to-report find-partner-b-b
 end
 
 
-; Sets common attributes for each turtle
-to make-node-turtle-attributes
-  set turtle-id who
-  set color white
-  ; initialize variables for each turtle
-  setup-generate-strategy  ; set the strategy of the employee
-  setup-generate-diligence   ; set the diligence of the employee
-  setup-set-strategy-label ; prints the label for each employee based on their strategy
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; STOCHASTIC BLOCK MODEL ;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  ; set all basic values for each employee
-  set productivity random-normal mean-value-productivity std-deviation-productivity ; set productivity mean-value
-  set stress-limit round random-normal mean-value-stress-limit std-deviation-stress-limit
-  set is-sick? false
-  set sick-counter 0
-  set own-performance 100
-  set low-performance-counter 0
-  set number-of-defects 0
-  set number-of-cooperation 0
-  set label-color red
-  set effort initial-effort
+
+to setup-stochastic-block
+  clear-all
+  set current-topology "stochastic-block"
+  set world-size num-nodes
+  resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
+  set init-value initial-wage * world-size
+  setup
+  setup-nodes-stochastic-block
+  setup-count-all-strategies
+  setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
+
+  repeat 3 [ layout-spring (turtles with [any? link-neighbors]) links 0.4 6 1 ] ;; lays the nodes in a triangle
+  set budget initial-wage * count turtles
+end
+
+to setup-nodes-stochastic-block
+   create-turtles num-nodes [
+    make-node-turtle-attributes
+    set group random 3           ; Assign each turtle to one of three groups
+    set color (ifelse-value (group = 0) [red] [ifelse-value (group = 1) [blue] [green]])
+    setxy random-xcor random-ycor
+  ]
+
+  create-edges-stochastic-block
 end
 
 
+to create-edges-stochastic-block
+  ask links [ die ]
+  ask turtles [
+    ask turtles with [ who > [ who ] of myself ] [
+      if random-float 1.0 < connection-probability group [group] of myself [
+        create-link-with myself
+
+      ]
+    ]
+  ]
+end
+
+
+to-report connection-probability [other-group my-group]
+  let p-matrix [[0.2 0.05 0.05] [0.05 0.2 0.05] [0.05 0.05 0.2]] ; Example probability matrix
+  report item other-group (item my-group p-matrix)
+end
+
+
+to community-detection
+  nw:set-context turtles links
+  color-clusters nw:louvain-communities
+end
+
+
+to color-clusters [ clusters ]
+  ; reset all colors
+  ask turtles [ set color gray ]
+  ask links [ set color gray - 2 ]
+  let n length clusters
+  ; Generate a unique hue for each cluster
+  let hues n-values n [ i -> (360 * i / n) ]
+
+  ; loop through the clusters and colors zipped together
+  (foreach clusters hues [ [cluster hue] ->
+    ask cluster [ ; for each node in the cluster
+                  ; give the node the color of its cluster
+      set color hsb hue 100 100
+      ; Color links contained in the cluster slightly darker than the cluster color
+      ask my-links with [ member? other-end cluster ] [ set color hsb hue 100 75 ]
+    ]
+  ])
+end
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;; ZACHARY'S KARATE CLUB ;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to zachary-karate-club
+
+  clear-all
+
+  ; https://github.com/softrebel/zachary-visualize/blob/main/zachary.graphml
+  nw:load-graphml "zachary.graphml"
+  set current-topology "zachary"
+  set world-size 36
+  resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
+  set init-value initial-wage * world-size
+  setup
+
+  ask turtles [
+    make-node-turtle-attributes
+  ]
+
+  setup-count-all-strategies
+  setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
+
+  repeat 3 [ layout-spring (turtles with [any? link-neighbors]) links 0.4 6 1 ] ;; lays the nodes in a triangle
+  set budget initial-wage * count turtles
+
+end
 
 
 ;;;;; RUN ;;;;;
@@ -849,6 +956,7 @@ to go
     ]
   ]
 
+
   ; reset values after evaluation
   if (ticks mod boss-reaction-time) = 0 and ticks != 0 [
     ask turtles [
@@ -883,7 +991,7 @@ to go
   ]
 
   if (ticks mod 100 = 0)[
-   ; hire-new-employee
+     hire-new-employee
   ]
 
   tick
@@ -903,10 +1011,6 @@ to hire-new-employee
         ]
       ]
     ]
-  ]
-
-  if current-topology = "watts-strogatz" [
-    make-node-w-s
   ]
 
   if current-topology = "barabasi-albert" [
@@ -936,7 +1040,6 @@ to hire-new-employee
   ]
 
 end
-
 
 
 to leave-company
@@ -1807,7 +1910,7 @@ sick-slider
 sick-slider
 1
 100
-53.0
+8.0
 1
 1
 NIL
@@ -2018,7 +2121,7 @@ sickness-probability
 sickness-probability
 0
 1
-0.0
+1.0
 0.1
 1
 NIL
@@ -2194,7 +2297,7 @@ wiring-probability
 wiring-probability
 0
 1
-0.71
+0.21
 0.01
 1
 NIL
@@ -2542,11 +2645,62 @@ Topology settings
 
 BUTTON
 835
-380
+370
 1005
-415
+405
 NIL
 setup-bianconi-barabasi
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+835
+415
+1005
+448
+NIL
+setup-stochastic-block
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+835
+520
+1005
+553
+NIL
+community-detection
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+835
+460
+1005
+493
+NIL
+zachary-karate-club\n
 NIL
 1
 T
