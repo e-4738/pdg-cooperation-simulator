@@ -7,6 +7,7 @@ globals [
 
   total-company-value      ; total number of money in the company
   last-total-company-value ; total number of money in the company last evaluation
+  hiring-decision-last-total-company-value
 
   initial-budget   ; initial budget divided for salaries each tick; this is constant number used
                    ; for applying boundaries for flexible budget variable
@@ -52,7 +53,7 @@ turtles-own [
   defect-now?       ; true if the employee is going to defect during PD game
   has-partner?      ; specifies if the employee has a partner for cooperation
   partner           ; partner (another employee) for this round
-  partner-id     ; coordinates of the partner in partner-history list
+  partner-id        ; coordinates of the partner in partner-history list
   partner-defected? ; true if the partner defects within this round
   partner-history   ; a list containing information about past interactions with other employees
   partner-history-longer   ; a list containing information about past interactions with other employees two
@@ -140,6 +141,9 @@ to-report stress-container
   report mean-value-stress-limit ; specifies maximal possible change of stress
 end
 
+to-report max-number-of-employees
+  report 400
+end
 
 ;;;;;; SETUP ;;;;;
 
@@ -152,6 +156,7 @@ to setup
   set total-company-value init-value
   set initial-budget init-value
   set last-total-company-value init-value
+  set hiring-decision-last-total-company-value init-value
 
   ; following global variable checks number of fired employees based on their strategy
   set count-fired-sick [ 0 0 0 0 0 0 0 ]
@@ -175,6 +180,8 @@ end
 to setup-set-basic-values-for-employee
     set productivity random-normal mean-value-productivity std-deviation-productivity
     set stress-limit round random-normal mean-value-stress-limit std-deviation-stress-limit
+    set group random number-of-communities
+    set fitness random-float 1.0
     set is-sick? false
     set sick-counter 0
     set own-performance 100
@@ -203,6 +210,8 @@ to make-node-turtle-attributes
   ; set all basic values for each employee
   set productivity random-normal mean-value-productivity std-deviation-productivity ; set productivity mean-value
   set stress-limit round random-normal mean-value-stress-limit std-deviation-stress-limit
+  set group random number-of-communities
+  set fitness random-float 1.0
   set is-sick? false
   set sick-counter 0
   set own-performance 100
@@ -215,55 +224,54 @@ end
 
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;; ERDOSI RENYI ;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; STOCHASTIC BLOCK MODEL ;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-to setup-erdos-renyi
+to setup-stochastic-block
   clear-all
-  set current-topology "erdos-renyi"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
   setup
-  setup-nodes-erdos-renyi
+  setup-nodes-stochastic-block
   setup-count-all-strategies
   setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
-  do-calculations-e-r
+
   repeat 3 [ layout-spring (turtles with [any? link-neighbors]) links 0.4 6 1 ] ;; lays the nodes in a triangle
   set budget initial-wage * count turtles
 end
 
-
-to setup-nodes-erdos-renyi
-  repeat num-nodes [
-    make-node-e-r
-  ]
-  wire-Erdos-Renyi
-end
-
-
-to make-node-e-r
-  create-turtles 1 [
+to setup-nodes-stochastic-block
+   create-turtles num-nodes [
     make-node-turtle-attributes
+    set color (group * 10) + 6
     setxy random-xcor random-ycor
   ]
+
+  create-edges-stochastic-block
 end
 
 
-; A variant of the classic Erdos-Renyi where each possible pair of nodes
-; gets a chance to create a link between them with a specified probability.
-to wire-Erdos-Renyi
+to create-edges-stochastic-block
   ask links [ die ]
   ask turtles [
     ask turtles with [ who > [ who ] of myself ] [
-      if random-float 1.0 < wiring-probability [
+      if random-float 1.0 < connection-probability group [group] of myself [
         create-link-with myself
       ]
     ]
   ]
 end
+
+
+to-report connection-probability [other-group my-group]
+  ifelse (other-group = my-group)
+    [ report wiring-probability-inside-community ]
+    [ report wiring-probability-outside-community ]
+end
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -273,7 +281,6 @@ end
 
 to setup-watts-strogatz
   clear-all
-  set current-topology "watts-strogatz"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -315,7 +322,6 @@ end
 
 to setup-barabasi-albert
   clear-all
-  set current-topology "barabasi-albert"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -372,7 +378,6 @@ end
 
 to setup-bianconi-barabasi
   clear-all
-  set current-topology "bianconi-barabasi"
   set world-size num-nodes
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -399,7 +404,6 @@ end
 to make-node-b-b [old-node]
   create-turtles 1 [
     make-node-turtle-attributes
-    set fitness random-float 1.0
     if old-node != nobody
       [ create-link-with old-node ;;[ set color green ]
         ; position the new node near its partner
@@ -421,57 +425,6 @@ to-report find-partner-b-b
         [ set node-partner self ]
         [ set total total - nc ] ] ]
   report node-partner
-end
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; STOCHASTIC BLOCK MODEL ;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-to setup-stochastic-block
-  clear-all
-  set current-topology "stochastic-block"
-  set world-size num-nodes
-  resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
-  set init-value initial-wage * world-size
-  setup
-  setup-nodes-stochastic-block
-  setup-count-all-strategies
-  setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
-
-  repeat 3 [ layout-spring (turtles with [any? link-neighbors]) links 0.4 6 1 ] ;; lays the nodes in a triangle
-  set budget initial-wage * count turtles
-end
-
-to setup-nodes-stochastic-block
-   create-turtles num-nodes [
-    make-node-turtle-attributes
-    set group random 3           ; Assign each turtle to one of three groups
-    set color (ifelse-value (group = 0) [red] [ifelse-value (group = 1) [blue] [green]])
-    setxy random-xcor random-ycor
-  ]
-
-  create-edges-stochastic-block
-end
-
-
-to create-edges-stochastic-block
-  ask links [ die ]
-  ask turtles [
-    ask turtles with [ who > [ who ] of myself ] [
-      if random-float 1.0 < connection-probability group [group] of myself [
-        create-link-with myself
-
-      ]
-    ]
-  ]
-end
-
-
-to-report connection-probability [other-group my-group]
-  let p-matrix [[0.2 0.05 0.05] [0.05 0.2 0.05] [0.05 0.05 0.2]] ; Example probability matrix
-  report item other-group (item my-group p-matrix)
 end
 
 
@@ -512,7 +465,6 @@ to zachary-karate-club
 
   ; https://github.com/softrebel/zachary-visualize/blob/main/zachary.graphml
   nw:load-graphml "zachary.graphml"
-  set current-topology "zachary"
   set world-size 36
   resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
   set init-value initial-wage * world-size
@@ -834,7 +786,7 @@ to go
         ]
 
       ; update stress based on income
-      ; wage-change-tmp can be potive or negative. Therefore stress is increased when wage is decreased
+      ; wage-change-tmp can be positive or negative. Therefore stress is increased when wage is decreased
       ; and stress is decreased when wage is increased.
       set stress-actual stress-actual - coef-dist * wage-change-tmp * evaluation-stress-change
 
@@ -951,7 +903,7 @@ to go
 
         ifelse (random-float 1.0 < 0.8)
           [leave-company]
-          [replace-employee index]
+          [replace-employee]
       ]
     ]
   ]
@@ -990,9 +942,37 @@ to go
     set budget budget-new
   ]
 
-  if (ticks mod 100 = 0)[
-     hire-new-employee
+  ; hire new emplyess -  0 - (5% of number of emplyees) per quarter, after certain company growth
+  if (ticks mod 60 = 0 and hiring-decision-last-total-company-value * 1.2 < total-company-value and ticks != 0)[
+    repeat (count turtles * 0.05) [
+      hire-new-employee
+    ]
+    set hiring-decision-last-total-company-value total-company-value
   ]
+
+  ; fire emplyees based on company performance
+  if (ticks mod 60 = 0 and hiring-decision-last-total-company-value > total-company-value and ticks != 0)[
+    repeat (count turtles * 0.05) [
+      ask one-of turtles [
+        ifelse (random-float 1.0 < 0.8)
+          [ leave-company ]
+          [ replace-employee ]
+      ]
+    ]
+    set hiring-decision-last-total-company-value total-company-value
+  ]
+
+  ; natural emplyee fluctuation
+  if (ticks mod 60 = 0 and ticks != 0)[
+    repeat (count turtles * attrition-percentage / 4) [
+      ask one-of turtles [
+        ifelse (random-float 1.0 < 0.8)
+          [ leave-company ]
+          [ replace-employee ]
+      ]
+    ]
+  ]
+
 
   tick
 end
@@ -1002,22 +982,18 @@ to hire-new-employee
 
   let length-of-partner-history length [partner-history] of one-of turtles
 
-  if current-topology = "erdos-renyi" [
+  if hiring-strategy = "random" [
     create-turtles 1 [
       make-node-turtle-attributes
       ask other turtles [
-        if random-float 1.0 < wiring-probability [
+        if random-float 1.0 < connection-probability group [group] of myself [
           create-link-with myself
         ]
       ]
     ]
   ]
 
-  if current-topology = "barabasi-albert" [
-    make-node-b-a find-partner
-  ]
-
-  if current-topology = "bianconi-barabasi" [
+  if hiring-strategy = "preferential" [
     make-node-b-b find-partner-b-b
   ]
 
@@ -1039,6 +1015,8 @@ to hire-new-employee
     set partner-history-longer (lput false partner-history-longer)
   ]
 
+  ;;add penalization
+
 end
 
 
@@ -1059,12 +1037,11 @@ to leave-company
       ]
     ]
   ]
-
   die
 end
 
 
-to replace-employee [index]
+to replace-employee
 
   let partner-history-length length partner-history
   let partner-history-longer-length length partner-history-longer
@@ -1074,9 +1051,9 @@ to replace-employee [index]
   setup-set-strategy-label   ; prints the label for each employee based on their strategy
 
   ; count newly generated strategy
-  set index strategy-index [ strategy ] of self
+  let index strategy-index strategy
   let tmp-item item index count-strategies
-  set count-strategies (replace-item index count-strategies (tmp-item + 1))
+  set count-strategies (replace-item index count-strategies (tmp-item + 1))   ;;TODO CHECK
 
   setup-set-basic-values-for-employee
 
@@ -1131,7 +1108,7 @@ end
 
 ; Function counts the money generated this tick by employee. It is based on emplyee productivity
 ; and cooperation part.
-; Coeficient is given by sliders: both-defect, coop-defect, defect-coop and both-cooperate
+; Coeficient is given by constants: both-defect, coop-defect, defect-coop and both-cooperate
 to generate-money-based-on-PD
   set partner-defected? [ defect-now? ] of partner
   ifelse partner-defected?
@@ -1174,7 +1151,7 @@ to stress-recolor-agent
     if stress-actual < stress-limit * 0.4 [ set color 8 ]
     if stress-actual < stress-limit * 0.2 [ set color white ]
   ]
-  [ set color yellow ]
+te  [ set color yellow ]
 end
 
 ; This function check the stress level and if the employee has the actual-stress at stress-limit
@@ -1255,6 +1232,7 @@ end
 
 ; Function sets the label for each employee based on their strategy
 to setup-set-strategy-label
+  set label who
   if strategy = "cooperate" [ set label "C  " ]
   if strategy = "defect" [ set label "D  " ]
   if strategy = "tit-for-tat" [ set label "T  " ]
@@ -1777,7 +1755,7 @@ cooperation-part
 cooperation-part
 0
 1
-0.5
+0.2
 0.01
 1
 NIL
@@ -1878,7 +1856,7 @@ stress-regen
 stress-regen
 0
 2
-0.425
+0.325
 0.025
 1
 NIL
@@ -1902,15 +1880,15 @@ NIL
 1
 
 SLIDER
-930
-650
-1100
-683
+1110
+765
+1280
+798
 sick-slider
 sick-slider
 1
 100
-8.0
+7.0
 1
 1
 NIL
@@ -1943,7 +1921,7 @@ boss-reaction-time
 boss-reaction-time
 10
 250
-80.0
+130.0
 5
 1
 NIL
@@ -1958,7 +1936,7 @@ performance-lower-limit
 performance-lower-limit
 25
 80
-70.0
+50.0
 5
 1
 %
@@ -2029,10 +2007,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-930
-580
-1100
-613
+1110
+695
+1280
+728
 patience
 patience
 0
@@ -2113,10 +2091,10 @@ black = defect\nred = coop\nyellow = TFT\norange = TFT-npm\nbrown = TF2T\nlila =
 1
 
 SLIDER
-930
-614
-1100
-647
+1110
+729
+1280
+762
 sickness-probability
 sickness-probability
 0
@@ -2211,7 +2189,7 @@ budget-change
 budget-change
 0
 0.1
-0.001
+0.0
 0.001
 1
 NIL
@@ -2282,7 +2260,7 @@ num-nodes
 num-nodes
 0
 100
-65.0
+56.0
 1
 1
 NIL
@@ -2291,13 +2269,13 @@ HORIZONTAL
 SLIDER
 835
 177
-1004
+1005
 210
-wiring-probability
-wiring-probability
+wiring-probability-inside-community
+wiring-probability-inside-community
 0
 1
-0.21
+0.25
 0.01
 1
 NIL
@@ -2305,14 +2283,14 @@ HORIZONTAL
 
 SLIDER
 835
-271
+345
 1005
-304
+378
 rewiring-probability
 rewiring-probability
 0
 1
-0.05
+0.09
 0.01
 1
 NIL
@@ -2320,26 +2298,9 @@ HORIZONTAL
 
 BUTTON
 835
-139
-1004
-175
-NIL
-setup-erdos-renyi
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-835
-324
+395
 1005
-361
+432
 NIL
 setup-barabasi-albert\n
 NIL
@@ -2354,9 +2315,9 @@ NIL
 
 BUTTON
 835
-232
+306
 1004
-268
+342
 NIL
 setup-watts-strogatz
 NIL
@@ -2467,7 +2428,7 @@ boss-reaction-intensity
 boss-reaction-intensity
 0
 1
-0.2
+0.1
 0.01
 1
 NIL
@@ -2517,7 +2478,7 @@ defect-strategy
 defect-strategy
 0
 1
-0.55
+0.57
 0.01
 1
 NIL
@@ -2532,7 +2493,7 @@ cooperate-strategy
 cooperate-strategy
 0
 1
-0.0
+0.43
 0.01
 1
 NIL
@@ -2547,7 +2508,7 @@ tit-for-tat-strategy
 tit-for-tat-strategy
 0
 1
-0.14
+0.0
 0.01
 1
 NIL
@@ -2634,10 +2595,10 @@ Strategy distribution\n
 1
 
 TEXTBOX
-842
-63
-965
-82
+840
+70
+963
+89
 Topology settings
 13
 0.0
@@ -2645,9 +2606,9 @@ Topology settings
 
 BUTTON
 835
-370
+441
 1005
-405
+476
 NIL
 setup-bianconi-barabasi
 NIL
@@ -2662,9 +2623,9 @@ NIL
 
 BUTTON
 835
-415
+140
 1005
-448
+173
 NIL
 setup-stochastic-block
 NIL
@@ -2678,10 +2639,10 @@ NIL
 1
 
 BUTTON
-835
-520
-1005
-553
+1175
+585
+1305
+618
 NIL
 community-detection
 NIL
@@ -2696,9 +2657,9 @@ NIL
 
 BUTTON
 835
-460
+485
 1005
-493
+518
 NIL
 zachary-karate-club\n
 NIL
@@ -2710,6 +2671,72 @@ NIL
 NIL
 NIL
 1
+
+MONITOR
+835
+15
+1005
+60
+number of emplyees
+count turtles
+17
+1
+11
+
+SLIDER
+835
+545
+1007
+578
+attrition-percentage
+attrition-percentage
+0
+1
+0.08
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+835
+215
+1005
+248
+wiring-probability-outside-community
+wiring-probability-outside-community
+0
+1
+0.14
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+835
+250
+1005
+283
+number-of-communities
+number-of-communities
+0
+10
+6.0
+1
+1
+NIL
+HORIZONTAL
+
+CHOOSER
+1028
+583
+1166
+628
+hiring-strategy
+hiring-strategy
+"preferential" "random"
+0
 
 @#$#@#$#@
 # Should the Boss be Nice? How Strategy of Hubs Influence Cooperation and Organizational Performance on Complex Networks 
