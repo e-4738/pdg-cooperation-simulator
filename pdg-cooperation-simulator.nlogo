@@ -1015,7 +1015,8 @@ to hire-new-employee
     set partner-history-longer (lput false partner-history-longer)
   ]
 
-  ;;add penalization
+  set total-company-value total-company-value - (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
+  set tmp-fluct tmp-fluct + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
 
 end
 
@@ -1151,7 +1152,7 @@ to stress-recolor-agent
     if stress-actual < stress-limit * 0.4 [ set color 8 ]
     if stress-actual < stress-limit * 0.2 [ set color white ]
   ]
-te  [ set color yellow ]
+  [ set color yellow ]
 end
 
 ; This function check the stress level and if the employee has the actual-stress at stress-limit
