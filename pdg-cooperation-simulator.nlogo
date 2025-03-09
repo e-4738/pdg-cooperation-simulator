@@ -41,9 +41,7 @@ globals [
 
   sum-of-performance-new  ; counts the sum of performances of all turtles (it is global because of code effectivity)
 
-  tmp-fluct
-
-  current-topology        ;remembering the current topology to choose method for linking new employee to an existing graph structure
+  total-fluctuation-loss
 ]
 
 turtles-own [
@@ -1016,7 +1014,7 @@ to hire-new-employee
   ]
 
   set total-company-value total-company-value - (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
-  set tmp-fluct tmp-fluct + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
+  set total-fluctuation-loss total-fluctuation-loss + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
 
 end
 
@@ -1060,7 +1058,7 @@ to replace-employee
 
   ; penalization for initial training of new employee
   set total-company-value total-company-value - (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
-  set tmp-fluct tmp-fluct + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
+  set total-fluctuation-loss total-fluctuation-loss + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
 
   ; reset own history lists
   set partner-history []
@@ -1201,6 +1199,17 @@ to setup-generate-strategy
         ]
       ]
     ]
+end
+
+
+to redistribute-strategy-probability
+  set defect-strategy 0.2
+  set cooperate-strategy 0.2
+  set tit-for-tat-npm-strategy 0.1
+  set tit-for-tat-strategy 0.2
+  set tit-for-two-tats-strategy 0.1
+  set pavlov-strategy 0.05
+  set unforgiving-strategy 0.05
 end
 
 
@@ -2462,9 +2471,9 @@ HORIZONTAL
 
 CHOOSER
 15
-482
+520
 187
-527
+565
 hub-strategy
 hub-strategy
 "default" "cooperate" "defect" "tit-for-tat" "tit-for-two-tats" "tit-for-tat-npm" "unforgiving" "pavlov"
@@ -2479,7 +2488,7 @@ defect-strategy
 defect-strategy
 0
 1
-0.57
+0.2
 0.01
 1
 NIL
@@ -2494,7 +2503,7 @@ cooperate-strategy
 cooperate-strategy
 0
 1
-0.43
+0.2
 0.01
 1
 NIL
@@ -2509,7 +2518,7 @@ tit-for-tat-strategy
 tit-for-tat-strategy
 0
 1
-0.0
+0.2
 0.01
 1
 NIL
@@ -2524,7 +2533,7 @@ pavlov-strategy
 pavlov-strategy
 0
 1
-0.21
+0.05
 0.01
 1
 NIL
@@ -2539,7 +2548,7 @@ unforgiving-strategy
 unforgiving-strategy
 0
 1
-0.47
+0.05
 0.01
 1
 NIL
@@ -2554,7 +2563,7 @@ tit-for-tat-npm-strategy
 tit-for-tat-npm-strategy
 0
 1
-0.23
+0.1
 0.01
 1
 NIL
@@ -2693,7 +2702,7 @@ attrition-percentage
 attrition-percentage
 0
 1
-0.08
+0.37
 0.01
 1
 NIL
@@ -2738,6 +2747,34 @@ hiring-strategy
 hiring-strategy
 "preferential" "random"
 0
+
+MONITOR
+835
+585
+1010
+630
+NIL
+total-fluctuation-loss
+17
+1
+11
+
+BUTTON
+15
+470
+185
+503
+NIL
+redistribute-strategy-probability
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 # Should the Boss be Nice? How Strategy of Hubs Influence Cooperation and Organizational Performance on Complex Networks 
