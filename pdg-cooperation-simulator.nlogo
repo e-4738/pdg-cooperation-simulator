@@ -227,6 +227,7 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+; in case of the same value of wiring-probability-inside-community & wiring-probability-outside-community properties, the model degrates to Erdos-Rényi graph
 to setup-stochastic-block
   clear-all
   set world-size num-nodes
@@ -899,6 +900,7 @@ to go
       ; replace the old employee with new one
       if (sick-counter >= patience or low-performance-counter >= patience) [
 
+        ;there is a 20% probability that the comapny will find a replacemnt and the graph structure will not change
         ifelse (random-float 1.0 < 0.8)
           [leave-company]
           [replace-employee]
@@ -940,18 +942,20 @@ to go
     set budget budget-new
   ]
 
-  ; hire new emplyess -  0 - (5% of number of emplyees) per quarter, after certain company growth
-  if (ticks mod 60 = 0 and hiring-decision-last-total-company-value * 1.2 < total-company-value and ticks != 0)[
-    repeat (count turtles * 0.05) [
+  ; hire new emplyess per quarter, after certain company growth in a tracked period
+  ; TODO: find better criterium
+  if (ticks mod 60 = 0 and hiring-decision-last-total-company-value < total-company-value and ticks != 0 and count turtles < max-number-of-employees)[
+    repeat (count turtles * hiring-percentage / 4) [
       hire-new-employee
     ]
     set hiring-decision-last-total-company-value total-company-value
   ]
 
-  ; fire emplyees based on company performance
+  ; fire emplyees per quarter based on company performance - ig the total company value is smaller than value of last evaluation
+  ; fire by emplyees' productivity
   if (ticks mod 60 = 0 and hiring-decision-last-total-company-value > total-company-value and ticks != 0)[
-    repeat (count turtles * 0.05) [
-      ask one-of turtles [
+    repeat (count turtles * firing-percentage / 4) [
+      ask min-one-of turtles [productivity] [
         ifelse (random-float 1.0 < 0.8)
           [ leave-company ]
           [ replace-employee ]
@@ -960,7 +964,7 @@ to go
     set hiring-decision-last-total-company-value total-company-value
   ]
 
-  ; natural emplyee fluctuation
+  ; natural emplyee fluctuation per quarter
   if (ticks mod 60 = 0 and ticks != 0)[
     repeat (count turtles * attrition-percentage / 4) [
       ask one-of turtles [
@@ -1844,9 +1848,9 @@ HORIZONTAL
 
 SLIDER
 725
-730
+740
 895
-763
+773
 stress-modification-on-PD
 stress-modification-on-PD
 0
@@ -1859,14 +1863,14 @@ HORIZONTAL
 
 SLIDER
 725
-694
+704
 895
-727
+737
 stress-regen
 stress-regen
 0
 2
-0.325
+0.275
 0.025
 1
 NIL
@@ -1890,10 +1894,10 @@ NIL
 1
 
 SLIDER
-1110
-765
-1280
-798
+1100
+770
+1270
+803
 sick-slider
 sick-slider
 1
@@ -1939,9 +1943,9 @@ HORIZONTAL
 
 SLIDER
 368
-765
+775
 538
-798
+808
 performance-lower-limit
 performance-lower-limit
 25
@@ -1954,9 +1958,9 @@ HORIZONTAL
 
 SLIDER
 368
-799
+809
 538
-832
+842
 performance-upper-limit
 performance-upper-limit
 110
@@ -1969,9 +1973,9 @@ HORIZONTAL
 
 SLIDER
 542
-799
+809
 712
-832
+842
 boss-insight-performance
 boss-insight-performance
 0
@@ -2017,10 +2021,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-1110
-695
-1280
-728
+1100
+700
+1270
+733
 patience
 patience
 0
@@ -2033,9 +2037,9 @@ HORIZONTAL
 
 SLIDER
 725
-764
+774
 895
-797
+807
 effort-stress-increase
 effort-stress-increase
 0
@@ -2048,9 +2052,9 @@ HORIZONTAL
 
 SLIDER
 542
-729
+739
 717
-762
+772
 boss-insight-cooperation-probability
 boss-insight-cooperation-probability
 0
@@ -2101,10 +2105,10 @@ black = defect\nred = coop\nyellow = TFT\norange = TFT-npm\nbrown = TF2T\nlila =
 1
 
 SLIDER
-1110
-729
-1280
-762
+1100
+734
+1270
+767
 sickness-probability
 sickness-probability
 0
@@ -2139,9 +2143,9 @@ sum count-fired-performance
 
 SLIDER
 725
-800
+810
 895
-833
+843
 evaluation-stress-change
 evaluation-stress-change
 0
@@ -2191,10 +2195,10 @@ PENS
 "pen-10" 1.0 0 -1513240 true "" "plot-pen-reset\nplotxy 0 150\nplotxy plot-x-max 150"
 
 SLIDER
-930
-700
-1100
-733
+920
+705
+1090
+738
 budget-change
 budget-change
 0
@@ -2206,10 +2210,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-930
-770
-1102
-803
+920
+775
+1092
+808
 minimal-budget
 minimal-budget
 0
@@ -2221,10 +2225,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-930
-804
-1102
-837
+920
+809
+1092
+842
 maximal-budget
 maximal-budget
 1
@@ -2255,7 +2259,7 @@ penalisation-for-fluctuation
 penalisation-for-fluctuation
 0
 12
-7.0
+5.0
 1
 1
 NIL
@@ -2270,7 +2274,7 @@ num-nodes
 num-nodes
 0
 100
-56.0
+74.0
 1
 1
 NIL
@@ -2352,10 +2356,10 @@ sum [own-performance] of turtles / num-nodes
 11
 
 SLIDER
-930
-734
-1100
-767
+920
+739
+1090
+772
 fixed-budget-change
 fixed-budget-change
 0
@@ -2431,9 +2435,9 @@ HORIZONTAL
 
 SLIDER
 542
-695
+705
 719
-728
+738
 boss-reaction-intensity
 boss-reaction-intensity
 0
@@ -2456,9 +2460,9 @@ wage-distribution-strategy
 
 SLIDER
 542
-765
+775
 712
-798
+808
 boss-insight-cooperation-part
 boss-insight-cooperation-part
 0
@@ -2702,7 +2706,7 @@ attrition-percentage
 attrition-percentage
 0
 1
-0.37
+0.15
 0.01
 1
 NIL
@@ -2717,7 +2721,7 @@ wiring-probability-outside-community
 wiring-probability-outside-community
 0
 1
-0.14
+0.12
 0.01
 1
 NIL
@@ -2732,7 +2736,7 @@ number-of-communities
 number-of-communities
 0
 10
-6.0
+4.0
 1
 1
 NIL
@@ -2749,10 +2753,10 @@ hiring-strategy
 0
 
 MONITOR
-835
-585
-1010
-630
+1030
+635
+1205
+680
 NIL
 total-fluctuation-loss
 17
@@ -2775,6 +2779,36 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+835
+615
+1007
+648
+hiring-percentage
+hiring-percentage
+0
+1
+0.2
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+835
+580
+1007
+613
+firing-percentage
+firing-percentage
+0
+1
+0.2
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 # Should the Boss be Nice? How Strategy of Hubs Influence Cooperation and Organizational Performance on Complex Networks 
