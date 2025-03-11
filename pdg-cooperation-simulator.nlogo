@@ -353,6 +353,15 @@ to make-node-b-a [old-node]
         ; position the new node near its partner
         move-to old-node
         fd 8
+
+        ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
+        let old-node-neighbors [link-neighbors] of old-node
+        if count old-node-neighbors >= 2 [
+          if (random-float 1.0 < triadic-closure-probability) [
+            let neighbor one-of (old-node-neighbors with [ myself != self ])
+            create-link-with neighbor
+          ]
+        ]
       ]
   ]
 end
@@ -408,6 +417,15 @@ to make-node-b-b [old-node]
         ; position the new node near its partner
         move-to old-node
         fd 8
+
+        ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
+        let old-node-neighbors [link-neighbors] of old-node
+        if count old-node-neighbors >= 2 [
+          if (random-float 1.0 < triadic-closure-probability) [
+            let neighbor one-of (old-node-neighbors with [ myself != self ])
+            create-link-with neighbor
+          ]
+        ]
       ]
   ]
 end
@@ -2274,7 +2292,7 @@ num-nodes
 num-nodes
 0
 100
-74.0
+62.0
 1
 1
 NIL
@@ -2304,7 +2322,7 @@ rewiring-probability
 rewiring-probability
 0
 1
-0.09
+0.12
 0.01
 1
 NIL
@@ -2481,7 +2499,7 @@ CHOOSER
 hub-strategy
 hub-strategy
 "default" "cooperate" "defect" "tit-for-tat" "tit-for-two-tats" "tit-for-tat-npm" "unforgiving" "pavlov"
-0
+2
 
 SLIDER
 14
@@ -2671,9 +2689,9 @@ NIL
 
 BUTTON
 835
-485
+540
 1005
-518
+573
 NIL
 zachary-karate-club\n
 NIL
@@ -2699,9 +2717,9 @@ count turtles
 
 SLIDER
 835
-545
+580
 1007
-578
+613
 attrition-percentage
 attrition-percentage
 0
@@ -2782,9 +2800,9 @@ NIL
 
 SLIDER
 835
-615
+650
 1007
-648
+683
 hiring-percentage
 hiring-percentage
 0
@@ -2797,14 +2815,47 @@ HORIZONTAL
 
 SLIDER
 835
-580
+615
 1007
-613
+648
 firing-percentage
 firing-percentage
 0
 1
 0.2
+0.01
+1
+NIL
+HORIZONTAL
+
+PLOT
+1802
+695
+2196
+845
+plot 1
+NIL
+NIL
+0.0
+20.0
+0.0
+20.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "histogram [ count my-links ] of turtles"
+
+SLIDER
+837
+483
+1007
+516
+triadic-closure-probability
+triadic-closure-probability
+0
+1
+0.37
 0.01
 1
 NIL
