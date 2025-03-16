@@ -2047,7 +2047,7 @@ patience
 patience
 0
 24
-24.0
+9.0
 1
 1
 NIL
@@ -2307,7 +2307,7 @@ wiring-probability-inside-community
 wiring-probability-inside-community
 0
 1
-0.25
+0.15
 0.01
 1
 NIL
@@ -2499,7 +2499,7 @@ CHOOSER
 hub-strategy
 hub-strategy
 "default" "cooperate" "defect" "tit-for-tat" "tit-for-two-tats" "tit-for-tat-npm" "unforgiving" "pavlov"
-2
+0
 
 SLIDER
 14
@@ -2509,8 +2509,8 @@ SLIDER
 defect-strategy
 defect-strategy
 0
-1
-0.2
+1 - (cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
+0.21
 0.01
 1
 NIL
@@ -2524,7 +2524,7 @@ SLIDER
 cooperate-strategy
 cooperate-strategy
 0
-1
+1 - (defect-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
 0.2
 0.01
 1
@@ -2539,7 +2539,7 @@ SLIDER
 tit-for-tat-strategy
 tit-for-tat-strategy
 0
-1
+1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
 0.2
 0.01
 1
@@ -2554,8 +2554,8 @@ SLIDER
 pavlov-strategy
 pavlov-strategy
 0
-1
-0.05
+1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + unforgiving-strategy)
+0.09
 0.01
 1
 NIL
@@ -2569,8 +2569,8 @@ SLIDER
 unforgiving-strategy
 unforgiving-strategy
 0
-1
-0.05
+1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy)
+0.04
 0.01
 1
 NIL
@@ -2584,7 +2584,7 @@ SLIDER
 tit-for-tat-npm-strategy
 tit-for-tat-npm-strategy
 0
-1
+1 - (defect-strategy + cooperate-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
 0.1
 0.01
 1
@@ -2599,7 +2599,7 @@ SLIDER
 tit-for-two-tats-strategy
 tit-for-two-tats-strategy
 0
-1
+1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + pavlov-strategy + unforgiving-strategy)
 0.1
 0.01
 1
@@ -2724,7 +2724,7 @@ attrition-percentage
 attrition-percentage
 0
 1
-0.15
+0.18
 0.01
 1
 NIL
@@ -2739,7 +2739,7 @@ wiring-probability-outside-community
 wiring-probability-outside-community
 0
 1
-0.12
+0.15
 0.01
 1
 NIL
@@ -2754,7 +2754,7 @@ number-of-communities
 number-of-communities
 0
 10
-4.0
+3.0
 1
 1
 NIL
@@ -2855,7 +2855,7 @@ triadic-closure-probability
 triadic-closure-probability
 0
 1
-0.37
+0.72
 0.01
 1
 NIL
