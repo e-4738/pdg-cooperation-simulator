@@ -2509,7 +2509,7 @@ SLIDER
 defect-strategy
 defect-strategy
 0
-1 - (cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
+precision (1 - (cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
 0.21
 0.01
 1
@@ -2524,8 +2524,8 @@ SLIDER
 cooperate-strategy
 cooperate-strategy
 0
-1 - (defect-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
-0.2
+precision (1 - (defect-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
+0.21
 0.01
 1
 NIL
@@ -2539,7 +2539,7 @@ SLIDER
 tit-for-tat-strategy
 tit-for-tat-strategy
 0
-1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
+precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
 0.2
 0.01
 1
@@ -2554,8 +2554,8 @@ SLIDER
 pavlov-strategy
 pavlov-strategy
 0
-1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + unforgiving-strategy)
-0.09
+precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + unforgiving-strategy)) 2
+0.05
 0.01
 1
 NIL
@@ -2569,8 +2569,8 @@ SLIDER
 unforgiving-strategy
 unforgiving-strategy
 0
-1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy)
-0.04
+precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy)) 2
+0.05
 0.01
 1
 NIL
@@ -2584,8 +2584,8 @@ SLIDER
 tit-for-tat-npm-strategy
 tit-for-tat-npm-strategy
 0
-1 - (defect-strategy + cooperate-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)
-0.1
+precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
+0.19
 0.01
 1
 NIL
@@ -2599,8 +2599,8 @@ SLIDER
 tit-for-two-tats-strategy
 tit-for-two-tats-strategy
 0
-1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + pavlov-strategy + unforgiving-strategy)
-0.1
+precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + pavlov-strategy + unforgiving-strategy)) 2
+0.05
 0.01
 1
 NIL
