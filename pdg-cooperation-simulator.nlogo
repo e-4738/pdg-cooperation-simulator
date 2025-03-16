@@ -336,45 +336,46 @@ end
 
 
 to setup-nodes-barabasi-albert
-  make-node-b-a nobody        ; first node, unattached
-  make-node-b-a turtle 0
-    repeat world-size - 2 [     ; 2 turtles are already created above
-    make-node-b-a find-partner ; find partner & use it as attachment
+  make-node-barabasi []
+  make-node-barabasi (list (turtle 0))
+  repeat world-size - 2 [  ; 2 turtles are already created above
+    make-node-barabasi find-partner-b-a number-of-connections
     layout
   ]
 end
 
 
-to make-node-b-a [old-node]
-  create-turtles 1 [
-    make-node-turtle-attributes
-    if old-node != nobody
-      [ create-link-with old-node ;;[ set color green ]
-        ; position the new node near its partner
-        move-to old-node
-        fd 8
 
-        ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
-        let old-node-neighbors [link-neighbors] of old-node
-        if count old-node-neighbors >= 2 [
-          if (random-float 1.0 < triadic-closure-probability) [
-            let neighbor one-of (old-node-neighbors with [ myself != self ])
-            create-link-with neighbor
-          ]
-        ]
-      ]
+;; This code is borrowed from Lottery Example (in the Code Examples
+;; section of the Models Library).
+;; The idea behind the code is a bit tricky to understand.
+;; Basically we take the sum of the degrees (number of connections)
+;; of the turtles, and that's how many "tickets" we have in our lottery.
+;; Then we pick a random "ticket" (a random number).  Then we step
+;; through the turtles to figure out which node holds the winning ticket.
+to-report find-partner-b-a [m]
+  let partners []
+
+  if m > count turtles [set m count turtles]
+
+  while [length partners < m] [
+
+    let total random-float sum [count link-neighbors] of turtles
+    let node-partner nobody
+    ask turtles
+    [ let nc (count link-neighbors)
+      ;; if there's no winner yet...
+      if node-partner = nobody
+      [ ifelse nc > total
+        [ set node-partner self ]
+        [ set total total - nc ] ] ]
+
+    if (node-partner != nobody and not member? node-partner partners) [
+      set partners lput node-partner partners
+    ]
   ]
-end
 
-
-; This code is the heart of the "preferential attachment" mechanism, and acts like
-; a lottery where each node gets a ticket for every connection it already has.
-; While the basic idea is the same as in the Lottery Example (in the Code Examples
-; section of the Models Library), things are made simpler here by the fact that we
-; can just use the links as if they were the "tickets": we first pick a random link,
-; and than we pick one of the two ends of that link.
-to-report find-partner
-  report [one-of both-ends] of one-of links
+  report partners
 end
 
 
@@ -396,52 +397,68 @@ to setup-bianconi-barabasi
 
   set budget initial-wage * count turtles
   count-degree
-
 end
 
 
 to setup-nodes-bianconi-barabasi
-  make-node-b-b nobody        ; first node, unattached
-  make-node-b-b turtle 0
-    repeat world-size - 2 [     ; 2 turtles are already created above
-    make-node-b-b find-partner-b-b ; find partner & use it as attachment
+  make-node-barabasi []
+  make-node-barabasi (list (turtle 0))
+  repeat world-size - 2 [    ; 2 turtles are already created above
+    make-node-barabasi find-partner-b-b number-of-connections ; find partners & use it as attachment
     layout
   ]
 end
 
-to make-node-b-b [old-node]
+to make-node-barabasi [partners]
   create-turtles 1 [
     make-node-turtle-attributes
-    if old-node != nobody
-      [ create-link-with old-node ;;[ set color green ]
-        ; position the new node near its partner
-        move-to old-node
-        fd 8
+    let partner-index 0
 
-        ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
-        let old-node-neighbors [link-neighbors] of old-node
-        if count old-node-neighbors >= 2 [
-          if (random-float 1.0 < triadic-closure-probability) [
-            let neighbor one-of (old-node-neighbors with [ myself != self ])
-            create-link-with neighbor
-          ]
+    while [partner-index < length partners] [
+      let partner-node item partner-index partners
+      create-link-with partner-node
+      ; position the new node near its partner
+      move-to partner-node
+      fd 8
+
+      ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
+      let partner-node-neighbors [link-neighbors] of partner-node
+      if count partner-node-neighbors >= 2 [
+        if (random-float 1.0 < triadic-closure-probability) [
+          let neighbor one-of (partner-node-neighbors with [ myself != self ])
+          create-link-with neighbor
         ]
       ]
+
+      set partner-index partner-index + 1
+    ]
   ]
 end
 
 
-to-report find-partner-b-b
-  let total random-float sum [(count link-neighbors) * fitness] of turtles
-  let node-partner nobody
-  ask turtles
-  [ let nc (count link-neighbors) * fitness
-    ;; if there's no winner yet...
-    if node-partner = nobody
-    [ ifelse nc > total
+to-report find-partner-b-b [m]
+  let partners []
+
+  if m > count turtles [set m count turtles]
+
+  while [length partners < m] [
+
+    let total random-float sum [(count link-neighbors) * fitness] of turtles
+    let node-partner nobody
+    ask turtles
+    [ let nc (count link-neighbors) * fitness
+      ;; if there's no winner yet...
+      if node-partner = nobody
+      [ ifelse nc > total
         [ set node-partner self ]
         [ set total total - nc ] ] ]
-  report node-partner
+
+    if (node-partner != nobody and not member? node-partner partners) [
+      set partners lput node-partner partners
+    ]
+  ]
+
+  report partners
 end
 
 
@@ -1014,7 +1031,7 @@ to hire-new-employee
   ]
 
   if hiring-strategy = "preferential" [
-    make-node-b-b find-partner-b-b
+    make-node-barabasi find-partner-b-b number-of-connections
   ]
 
   layout
@@ -2292,7 +2309,7 @@ num-nodes
 num-nodes
 0
 100
-62.0
+30.0
 1
 1
 NIL
@@ -2314,10 +2331,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-835
-345
-1005
-378
+838
+338
+1008
+371
 rewiring-probability
 rewiring-probability
 0
@@ -2329,10 +2346,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-835
-395
-1005
-432
+838
+388
+1008
+425
 NIL
 setup-barabasi-albert\n
 NIL
@@ -2346,10 +2363,10 @@ NIL
 1
 
 BUTTON
-835
-306
-1004
-342
+838
+299
+1007
+335
 NIL
 setup-watts-strogatz
 NIL
@@ -2499,7 +2516,7 @@ CHOOSER
 hub-strategy
 hub-strategy
 "default" "cooperate" "defect" "tit-for-tat" "tit-for-two-tats" "tit-for-tat-npm" "unforgiving" "pavlov"
-0
+2
 
 SLIDER
 14
@@ -2637,10 +2654,10 @@ Topology settings
 1
 
 BUTTON
-835
-441
-1005
-476
+838
+428
+1008
+463
 NIL
 setup-bianconi-barabasi
 NIL
@@ -2688,10 +2705,10 @@ NIL
 1
 
 BUTTON
-835
-540
-1005
-573
+836
+549
+1006
+582
 NIL
 zachary-karate-club\n
 NIL
@@ -2716,10 +2733,10 @@ count turtles
 11
 
 SLIDER
-835
-580
-1007
-613
+836
+589
+1008
+622
 attrition-percentage
 attrition-percentage
 0
@@ -2799,10 +2816,10 @@ NIL
 1
 
 SLIDER
-835
-650
-1007
-683
+836
+659
+1008
+692
 hiring-percentage
 hiring-percentage
 0
@@ -2814,10 +2831,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-835
-615
-1007
-648
+836
+625
+1008
+658
 firing-percentage
 firing-percentage
 0
@@ -2847,16 +2864,31 @@ PENS
 "default" 1.0 0 -16777216 true "" "histogram [ count my-links ] of turtles"
 
 SLIDER
-837
-483
-1007
-516
+836
+508
+1009
+543
 triadic-closure-probability
 triadic-closure-probability
 0
 1
-0.72
+0.0
 0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+836
+469
+1009
+504
+number-of-connections
+number-of-connections
+0
+7
+1.0
+1
 1
 NIL
 HORIZONTAL
