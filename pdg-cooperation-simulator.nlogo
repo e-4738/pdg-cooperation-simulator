@@ -404,7 +404,7 @@ to link-barabasi [partners]
   let partner-index 0
   while [partner-index < length partners] [
     let partner-node item partner-index partners
-    create-link-with partner-node [ set age (random 3) ]
+    create-link-with partner-node [ set age (random 1500) + 90 ]
     ; position the new node near its partner
     move-to partner-node
     fd 8
@@ -414,7 +414,7 @@ to link-barabasi [partners]
     if count partner-node-neighbors >= 2 [
       if (random-float 1.0 < triadic-closure-probability) [
         let neighbor one-of (partner-node-neighbors with [ myself != self ])
-        create-link-with neighbor [ set age (random 3) ]
+        create-link-with neighbor [ set age (random 1500) + 90 ]
       ]
     ]
 
