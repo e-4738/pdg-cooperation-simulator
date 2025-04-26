@@ -81,10 +81,12 @@ turtles-own [
 
   fitness ; coefficient for Bianconi Barabasi algorthm
   group
+  community
 ]
 
 links-own [
   rewired?                    ; keeps track of whether the link has been rewired or not
+  age
 ]
 
 ;;;;; CONSTANTS ;;;;;
@@ -361,7 +363,6 @@ to-report find-partner-b-a [m]
 end
 
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;; BIANCONI BARABASI ;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -386,7 +387,7 @@ to setup-nodes-bianconi-barabasi
   make-node-barabasi []
   make-node-barabasi (list (turtle 0))
   repeat world-size - 2 [    ; 2 turtles are already created above
-    make-node-barabasi find-partner-b-b number-of-connections ; find partners & use it as attachment
+    make-node-barabasi find-partner-b-b number-of-connections turtles ; find partners & use it as attachment
     layout
   ]
 end
@@ -394,41 +395,47 @@ end
 to make-node-barabasi [partners]
   create-turtles 1 [
     make-node-turtle-attributes
-    let partner-index 0
-
-    while [partner-index < length partners] [
-      let partner-node item partner-index partners
-      create-link-with partner-node
-      ; position the new node near its partner
-      move-to partner-node
-      fd 8
-
-      ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
-      let partner-node-neighbors [link-neighbors] of partner-node
-      if count partner-node-neighbors >= 2 [
-        if (random-float 1.0 < triadic-closure-probability) [
-          let neighbor one-of (partner-node-neighbors with [ myself != self ])
-          create-link-with neighbor
-        ]
-      ]
-
-      set partner-index partner-index + 1
-    ]
+    link-barabasi partners
   ]
 end
 
+to link-barabasi [partners]
+  ;show "inside link-barabasi"
+  let partner-index 0
+  while [partner-index < length partners] [
+    let partner-node item partner-index partners
+    create-link-with partner-node [ set age (random 3) ]
+    ; position the new node near its partner
+    move-to partner-node
+    fd 8
 
-to-report find-partner-b-b [m]
+    ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
+    let partner-node-neighbors [link-neighbors] of partner-node
+    if count partner-node-neighbors >= 2 [
+      if (random-float 1.0 < triadic-closure-probability) [
+        let neighbor one-of (partner-node-neighbors with [ myself != self ])
+        create-link-with neighbor [ set age (random 3) ]
+      ]
+    ]
+
+    set partner-index partner-index + 1
+  ]
+
+end
+
+to-report find-partner-b-b [m agent-set]
   let partners []
 
-  if m > count turtles [set m count turtles]
+  if m > count agent-set [set m count agent-set]
 
+  ;show  "inside find-partner-b-b"
   while [length partners < m] [
 
-    let total random-float sum [(count link-neighbors) * fitness] of turtles
+    let total random-float sum [count link-neighbors * fitness] of agent-set
+    ;show total
     let node-partner nobody
-    ask turtles
-    [ let nc (count link-neighbors) * fitness
+    ask agent-set
+    [ let nc (count link-neighbors) * fitness    ;[ let nc (count link-neighbors with [member? self agent-set]) * fitness
       ;; if there's no winner yet...
       if node-partner = nobody
       [ ifelse nc > total
@@ -502,6 +509,16 @@ end
 ;;;;; RUN ;;;;;
 
 to go
+  layout
+
+  foreach nw:louvain-communities [ [comm] ->
+    ask comm [ set community comm ]
+  ]
+
+  ask turtles [
+    setup-set-strategy-label
+  ]
+
 
   ; PD game initialization and its storage in the history
   ask turtles [
@@ -512,18 +529,27 @@ to go
     ]
     [ set has-partner? false ]
 
-    ;; find the coordines of partner in history tables
-    if has-partner? [ set partner-id [turtle-id] of partner]
+
     ;; this set the the defect-now? and partner-defected? variables
     ;; based on employee's and partner's strategy
-    if has-partner? [ do-resolve-PD-action-this-round ]
-
-    ; update-history-tables
     if has-partner? [
-      if strategy = "tit-for-tat" [ tit-for-tat-history-update ]
-      if strategy = "tit-for-tat-npm" [ tit-for-tat-history-update ]
-      if strategy = "tit-for-two-tats" [ tit-for-two-tats-history-update ]
-      if strategy = "unforgiving" [ unforgiving-history-update ]
+
+      set partner-id [turtle-id] of partner
+      do-resolve-PD-action-this-round
+
+      ask partner [
+        set partner myself
+        set partner-id [turtle-id] of myself
+        do-resolve-PD-action-this-round
+        set partner-defected? [ defect-now? ] of partner
+      ]
+      set partner-defected? [ defect-now? ] of partner
+
+      ; update-history-tables
+      update-partner-history
+      ask partner [
+        update-partner-history
+      ]
     ]
   ]
 
@@ -531,7 +557,7 @@ to go
   let sum-own-performance sum [ own-performance ] of turtles
   ask turtles [
     ; set iniatial part of budget - it depends on the employee's performance
-    set initial-value own-performance * budget / sum-own-performance
+    set initial-value own-performance * budget / sum-own-performance   ;initial value = salary
   ]
 
   ; stress update
@@ -920,7 +946,7 @@ to go
 
         ;there is a 20% probability that the comapny will find a replacemnt and the graph structure will not change
         ifelse (random-float 1.0 < 0.8)
-          [leave-company]
+          [leave-company ]
           [replace-employee]
       ]
     ]
@@ -961,17 +987,16 @@ to go
   ]
 
   ; hire new emplyess per quarter, after certain company growth in a tracked period
-  ; TODO: find better criterium
-  if (ticks mod 60 = 0 and hiring-decision-last-total-company-value < total-company-value and ticks != 0 and count turtles < max-number-of-employees)[
+  if (ticks mod 90 = 0 and hiring-decision-last-total-company-value < total-company-value and ticks != 0 and count turtles < max-number-of-employees)[
     repeat (count turtles * hiring-percentage / 4) [
       hire-new-employee
     ]
     set hiring-decision-last-total-company-value total-company-value
   ]
 
-  ; fire emplyees per quarter based on company performance - ig the total company value is smaller than value of last evaluation
+  ; fire emplyees per quarter based on company performance - if the total company value is smaller than value of last evaluation
   ; fire by emplyees' productivity
-  if (ticks mod 60 = 0 and hiring-decision-last-total-company-value > total-company-value and ticks != 0)[
+  if (ticks mod 90 = 0 and hiring-decision-last-total-company-value > total-company-value and ticks != 0)[
     repeat (count turtles * firing-percentage / 4) [
       ask min-one-of turtles [productivity] [
         ifelse (random-float 1.0 < 0.8)
@@ -983,7 +1008,7 @@ to go
   ]
 
   ; natural emplyee fluctuation per quarter
-  if (ticks mod 60 = 0 and ticks != 0)[
+  if (ticks mod 90 = 0 and ticks != 0)[
     repeat (count turtles * attrition-percentage / 4) [
       ask one-of turtles [
         ifelse (random-float 1.0 < 0.8)
@@ -993,10 +1018,63 @@ to go
     ]
   ]
 
+  if temporal-network [
+    ask links [
+      set age age - 1
+      if age = 0 [
+        ask (turtle-set end1 end2) [
+          if count link-neighbors = 1 or random-float 1 < 0.5 [
+            let connection-candidates-without-existing-neighbors other turtles with [not member? self link-neighbors]
+            link-barabasi find-partner-b-b 1 connection-candidates-without-existing-neighbors
+          ]
+        ]
+      ]
+    ]
+  ]
+
+  reconnect-network
 
   tick
 end
 
+to export-network-structure
+  nw:save-graphml "network-structure.graphml"
+end
+
+to import-network-structure
+  nw:load-graphml "network-structure.graphml"
+end
+
+to clear
+  clear-all
+end
+
+to remove-node
+  ask turtles with [turtle-id = 4] [
+    leave-company
+  ]
+end
+
+to print-ids
+  ask turtles [
+    show who
+    show turtle-id
+  ]
+end
+
+
+to reconnect-network
+  let components nw:weak-component-clusters
+  while [length components > 1] [
+    let first-component item 0 components
+    let second-component item 1 components
+    let node1 max-one-of first-component [count link-neighbors]
+    let node2 max-one-of second-component [count link-neighbors]
+    ask node1 [ create-link-with node2 ]
+
+    set components nw:weak-component-clusters
+  ]
+end
 
 to hire-new-employee
 
@@ -1014,7 +1092,7 @@ to hire-new-employee
   ]
 
   if hiring-strategy = "preferential" [
-    make-node-barabasi find-partner-b-b number-of-connections
+    make-node-barabasi find-partner-b-b number-of-connections turtles
   ]
 
   layout
@@ -1042,23 +1120,54 @@ end
 
 
 to leave-company
-  let max-degree -1
-  let highest-degree-neighbor nobody
-  ask link-neighbors [
+
+  if (leave-strategy = "max-degree") [
+    let max-degree -1
+    let highest-degree-neighbor nobody
+    ask link-neighbors [
     let current-degree [own-degree] of self
     if current-degree > max-degree [
       set max-degree current-degree
       set highest-degree-neighbor self
+      ]
     ]
-  ]
-  if (highest-degree-neighbor != nobody) [
-    ask link-neighbors [
-      if (self != highest-degree-neighbor)[
-        create-link-with highest-degree-neighbor
+    if (highest-degree-neighbor != nobody) [
+      ask link-neighbors [
+        if (self != highest-degree-neighbor)[
+          create-link-with highest-degree-neighbor
+        ]
       ]
     ]
   ]
+
+  if (leave-strategy = "local-random") [
+    let neighbours link-neighbors
+
+    ask neighbours [
+      let me self
+      ask neighbours with [self > me] [
+        if random-float 1.0 < local-random-probability [
+          create-link-with me
+        ]
+      ]
+    ]
+  ]
+
+  if (leave-strategy = "community-aware-preferential") [
+    let connection-candidates other nw:turtles-in-radius community-radius
+    let neighbours link-neighbors
+    ask neighbours [
+      if count link-neighbors < 3 [
+        let connection-candidates-without-self connection-candidates with [myself != self]
+        let connection-candidates-without-existing-neighbors connection-candidates-without-self with [not member? self link-neighbors]
+        link-barabasi find-partner-b-b 1 connection-candidates-without-existing-neighbors
+      ]
+    ]
+  ]
+
   die
+
+
 end
 
 
@@ -1131,7 +1240,6 @@ end
 ; and cooperation part.
 ; Coeficient is given by constants: both-defect, coop-defect, defect-coop and both-cooperate
 to generate-money-based-on-PD
-  set partner-defected? [ defect-now? ] of partner
   ifelse partner-defected?
   [
     ifelse defect-now?
@@ -1158,6 +1266,59 @@ to update-generated-money-based-on-PD [ my-coef partner-coef ]
     set generated-value generated-value + coop-part * partner-coef
   ]
 end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Centrality Measures
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to betweenness
+  centrality [ -> nw:betweenness-centrality ]
+end
+
+to eigenvector
+  centrality [ -> nw:eigenvector-centrality ]
+end
+
+to closeness
+  centrality [ -> nw:closeness-centrality ]
+end
+
+; Takes a centrality measure as a reporter task, runs it for all nodes
+; and set labels, sizes and colors of turtles to illustrate result
+to centrality [ measure ]
+  nw:set-context turtles links
+  ask turtles [
+    let res (runresult measure) ; run the task for the turtle
+    ifelse is-number? res [
+      set label precision res 2
+      set size res ; this will be normalized later
+    ]
+    [ ; if the result is not a number, it is because eigenvector returned false (in the case of disconnected graphs
+      set label res
+      set size 1
+    ]
+  ]
+  normalize-sizes-and-colors
+end
+
+; We want the size of the turtles to reflect their centrality, but different measures
+; give different ranges of size, so we normalize the sizes according to the formula
+; below. We then use the normalized sizes to pick an appropriate color.
+to normalize-sizes-and-colors
+  if count turtles > 0 [
+    let sizes sort [ size ] of turtles ; initial sizes in increasing order
+    let delta last sizes - first sizes ; difference between biggest and smallest
+    ifelse delta = 0 [ ; if they are all the same size
+      ask turtles [ set size 1 ]
+    ]
+    [ ; remap the size to a range between 0.5 and 2.5
+      ask turtles [ set size ((size - first sizes) / delta) * 2 + 0.5 ]
+    ]
+    ask turtles [ set color scale-color red size 0 5 ] ; using a higher range max not to get too white...
+  ]
+end
+
 
 ;;;;; STRESS ;;;;;
 
@@ -1264,7 +1425,7 @@ end
 
 ; Function sets the label for each employee based on their strategy
 to setup-set-strategy-label
-  set label who
+  set label word turtle-id "  "
   if strategy = "cooperate" [ set label "C  " ]
   if strategy = "defect" [ set label "D  " ]
   if strategy = "tit-for-tat" [ set label "T  " ]
@@ -1346,6 +1507,15 @@ to unforgiving
   [ set defect-now? true ]
   [ set defect-now? false ]
 end
+
+
+to update-partner-history
+  if strategy = "tit-for-tat" [ tit-for-tat-history-update ]
+  if strategy = "tit-for-tat-npm" [ tit-for-tat-history-update ]
+  if strategy = "tit-for-two-tats" [ tit-for-two-tats-history-update ]
+  if strategy = "unforgiving" [ unforgiving-history-update ]
+end
+
 
 ; This function updates history table in tft strategy
 to tit-for-tat-history-update
@@ -1560,7 +1730,7 @@ initial-wage
 initial-wage
 50
 200
-100.0
+200.0
 50
 1
 NIL
@@ -1575,7 +1745,7 @@ cooperation-part
 cooperation-part
 0
 1
-0.2
+0.23
 0.01
 1
 NIL
@@ -1676,7 +1846,7 @@ stress-regen
 stress-regen
 0
 2
-0.3
+0.85
 0.025
 1
 NIL
@@ -1756,7 +1926,7 @@ performance-lower-limit
 performance-lower-limit
 25
 80
-50.0
+55.0
 5
 1
 %
@@ -1835,7 +2005,7 @@ patience
 patience
 0
 24
-12.0
+13.0
 1
 1
 NIL
@@ -1865,7 +2035,7 @@ boss-insight-cooperation-probability
 boss-insight-cooperation-probability
 0
 1
-1.0
+0.98
 0.01
 1
 NIL
@@ -2065,7 +2235,7 @@ penalisation-for-fluctuation
 penalisation-for-fluctuation
 0
 12
-5.0
+3.0
 1
 1
 NIL
@@ -2080,7 +2250,7 @@ num-nodes
 num-nodes
 0
 100
-100.0
+30.0
 1
 1
 NIL
@@ -2095,7 +2265,7 @@ wiring-probability-inside-community
 wiring-probability-inside-community
 0
 1
-0.33
+0.21
 0.01
 1
 NIL
@@ -2110,7 +2280,7 @@ rewiring-probability
 rewiring-probability
 0
 1
-0.08
+0.01
 0.01
 1
 NIL
@@ -2248,7 +2418,7 @@ boss-reaction-intensity
 boss-reaction-intensity
 0
 1
-0.1
+0.13
 0.01
 1
 NIL
@@ -2287,7 +2457,7 @@ CHOOSER
 hub-strategy
 hub-strategy
 "default" "cooperate" "defect" "tit-for-tat" "tit-for-two-tats" "tit-for-tat-npm" "unforgiving" "pavlov"
-2
+3
 
 SLIDER
 14
@@ -2298,7 +2468,7 @@ defect-strategy
 defect-strategy
 0
 precision (1 - (cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
-0.21
+0.37
 0.01
 1
 NIL
@@ -2313,7 +2483,7 @@ cooperate-strategy
 cooperate-strategy
 0
 precision (1 - (defect-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
-0.21
+0.28
 0.01
 1
 NIL
@@ -2328,7 +2498,7 @@ tit-for-tat-strategy
 tit-for-tat-strategy
 0
 precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
-0.2
+0.22
 0.01
 1
 NIL
@@ -2343,7 +2513,7 @@ pavlov-strategy
 pavlov-strategy
 0
 precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + unforgiving-strategy)) 2
-0.05
+0.0
 0.01
 1
 NIL
@@ -2358,7 +2528,7 @@ unforgiving-strategy
 unforgiving-strategy
 0
 precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy)) 2
-0.05
+0.13
 0.01
 1
 NIL
@@ -2373,7 +2543,7 @@ tit-for-tat-npm-strategy
 tit-for-tat-npm-strategy
 0
 precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-strategy + tit-for-two-tats-strategy + pavlov-strategy + unforgiving-strategy)) 2
-0.19
+0.0
 0.01
 1
 NIL
@@ -2388,7 +2558,7 @@ tit-for-two-tats-strategy
 tit-for-two-tats-strategy
 0
 precision (1 - (defect-strategy + cooperate-strategy + tit-for-tat-npm-strategy + tit-for-tat-strategy + pavlov-strategy + unforgiving-strategy)) 2
-0.05
+0.0
 0.01
 1
 NIL
@@ -2459,10 +2629,10 @@ NIL
 1
 
 BUTTON
-1173
-589
-1303
-622
+1110
+825
+1240
+858
 NIL
 community-detection
 NIL
@@ -2512,7 +2682,7 @@ attrition-percentage
 attrition-percentage
 0
 1
-0.15
+0.32
 0.01
 1
 NIL
@@ -2527,7 +2697,7 @@ wiring-probability-outside-community
 wiring-probability-outside-community
 0
 1
-0.09
+0.38
 0.01
 1
 NIL
@@ -2542,7 +2712,7 @@ number-of-communities
 number-of-communities
 0
 10
-3.0
+2.0
 1
 1
 NIL
@@ -2559,10 +2729,10 @@ hiring-strategy
 0
 
 MONITOR
-1030
-635
-1205
-680
+795
+745
+970
+790
 NIL
 total-fluctuation-loss
 17
@@ -2595,7 +2765,7 @@ hiring-percentage
 hiring-percentage
 0
 1
-0.2
+0.18
 0.01
 1
 NIL
@@ -2610,7 +2780,7 @@ firing-percentage
 firing-percentage
 0
 1
-0.2
+0.16
 0.01
 1
 NIL
@@ -2643,7 +2813,7 @@ triadic-closure-probability
 triadic-closure-probability
 0
 1
-0.0
+0.43
 0.01
 1
 NIL
@@ -2665,32 +2835,32 @@ NIL
 HORIZONTAL
 
 MONITOR
-840
-742
-986
-787
-NIL
-nw:mean-path-length
+795
+825
+975
+870
+mean path length
+precision nw:mean-path-length 4
 17
 1
 11
 
 MONITOR
-1038
-792
-1293
-838
-NIL
-mean [nw:clustering-coefficient] of turtles
+995
+875
+1200
+920
+local clustering coefficient - mean
+precision (mean [nw:clustering-coefficient] of turtles) 4
 17
 1
 11
 
 MONITOR
-840
-792
-1033
-838
+794
+877
+987
+922
 NIL
 global-clustering-coefficient
 17
@@ -2698,25 +2868,212 @@ global-clustering-coefficient
 11
 
 TEXTBOX
-842
-719
-1012
-738
+796
+804
+966
+823
 Network Analysis Attributes
 13
 0.0
 1
 
 MONITOR
-838
-846
-1091
-892
-NIL
+792
+931
+1045
+976
 nw:modularity nw:louvain-communities
+precision (nw:modularity nw:louvain-communities) 4
 17
 1
 11
+
+BUTTON
+993
+783
+1096
+818
+NIL
+eigenvector
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+994
+824
+1104
+859
+NIL
+betweenness
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+1103
+781
+1192
+816
+NIL
+closeness
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+CHOOSER
+1170
+585
+1310
+630
+leave-strategy
+leave-strategy
+"max-degree" "local-random" "community-aware-preferential"
+2
+
+SLIDER
+1172
+635
+1312
+668
+community-radius
+community-radius
+1
+10
+1.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1172
+670
+1312
+703
+local-random-probability
+local-random-probability
+0
+1
+0.3
+0.01
+1
+NIL
+HORIZONTAL
+
+BUTTON
+1265
+855
+1457
+888
+NIL
+export-network-structure
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+1265
+890
+1457
+923
+NIL
+import-network-structure\n
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+1665
+855
+1728
+888
+NIL
+clear\n
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+1460
+855
+1572
+888
+NIL
+remove-node
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+1575
+855
+1662
+888
+NIL
+print-ids
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SWITCH
+1030
+710
+1310
+743
+temporal-network
+temporal-network
+1
+1
+-1000
 
 @#$#@#$#@
 # Should the Boss be Nice? How Strategy of Hubs Influence Cooperation and Organizational Performance on Complex Networks 
@@ -3183,6 +3540,166 @@ NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="experiment" repetitions="1" runMetricsEveryStep="true">
+    <setup>setup-bianconi-barabasi</setup>
+    <go>go</go>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>count turtles</metric>
+    <enumeratedValueSet variable="defect-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="rewiring-probability">
+      <value value="0.01"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hub-strategy">
+      <value value="&quot;cooperate&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="maximal-budget">
+      <value value="15000"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wage-distribution-strategy">
+      <value value="&quot;increasing-own-perf&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="attrition-percentage">
+      <value value="0.32"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="evaluation-stress-change">
+      <value value="0.9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="firing-percentage">
+      <value value="0.16"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-cooperation-probability">
+      <value value="0.98"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-reaction-intensity">
+      <value value="0.12"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="stress-regen">
+      <value value="0.85"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wiring-probability-outside-community">
+      <value value="0.38"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="unforgiving-strategy">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="penalisation-for-fluctuation">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="sickness-probability">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-performance">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wiring-probability-inside-community">
+      <value value="0.21"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="stress-modification-on-PD">
+      <value value="0.051"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="budget-change">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="community-radius">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="leave-strategy">
+      <value value="&quot;max-degree&quot;"/>
+      <value value="&quot;local-random&quot;"/>
+      <value value="&quot;community-aware-preferential&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-cooperation-part">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="minimal-budget">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="performance-lower-limit">
+      <value value="55"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-reaction-time">
+      <value value="130"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="cooperation-part">
+      <value value="0.23"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="pavlov-strategy">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="fixed-budget-change">
+      <value value="0.002"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="std-deviation-productivity">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="patience">
+      <value value="13"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="performance-upper-limit">
+      <value value="200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="initial-wage">
+      <value value="200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="local-random-probability">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hiring-strategy">
+      <value value="&quot;random&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-tat-npm-strategy">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hiring-percentage">
+      <value value="0.18"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="std-deviation-stress-limit">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="effort-stress-increase">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="sick-slider">
+      <value value="7"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="cooperate-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="triadic-closure-probability">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mean-value-productivity">
+      <value value="3.8"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-of-communities">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-two-tats-strategy">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tft-npm-peace-probability">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="max-effort-change">
+      <value value="0.15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num-nodes">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-tat-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-of-connections">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mean-value-stress-limit">
+      <value value="300"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
