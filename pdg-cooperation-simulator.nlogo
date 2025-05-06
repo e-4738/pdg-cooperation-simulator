@@ -403,11 +403,10 @@ to make-node-barabasi [partners]
 end
 
 to link-barabasi [partners]
-  ;show "inside link-barabasi"
   let partner-index 0
   while [partner-index < length partners] [
     let partner-node item partner-index partners
-    create-link-with partner-node [ set age (random 1500) + 90 ]
+    create-link-with partner-node [ set age (random 1410) + 90 ]
     ; position the new node near its partner
     move-to partner-node
     fd 8
@@ -417,7 +416,7 @@ to link-barabasi [partners]
     if count partner-node-neighbors >= 2 [
       if (random-float 1.0 < triadic-closure-probability) [
         let neighbor one-of (partner-node-neighbors with [ myself != self ])
-        create-link-with neighbor [ set age (random 1500) + 90 ]
+        create-link-with neighbor [ set age (random 1410) + 90 ]
       ]
     ]
 
@@ -431,14 +430,13 @@ to-report find-partner-b-b [m agent-set]
 
   if m > count agent-set [set m count agent-set]
 
-  ;show  "inside find-partner-b-b"
   while [length partners < m] [
 
     let total random-float sum [count link-neighbors * fitness] of agent-set
     ;show total
     let node-partner nobody
     ask agent-set
-    [ let nc (count link-neighbors) * fitness    ;[ let nc (count link-neighbors with [member? self agent-set]) * fitness
+    [ let nc (count link-neighbors) * fitness
       ;; if there's no winner yet...
       if node-partner = nobody
       [ ifelse nc > total
@@ -479,34 +477,6 @@ to color-clusters [ clusters ]
   ])
 end
 
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;; ZACHARY'S KARATE CLUB ;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-to zachary-karate-club
-
-  clear-all
-
-  ; https://github.com/softrebel/zachary-visualize/blob/main/zachary.graphml
-  nw:load-graphml "zachary.graphml"
-  set world-size 36
-  resize-world -1 * world-size-const world-size-const -1 * world-size-const world-size-const
-  set init-value initial-wage * world-size
-  setup
-
-  ask turtles [
-    make-node-turtle-attributes
-  ]
-
-  setup-count-all-strategies
-  setup-history-lists     ; set all lists that are needed for remembering history of cooperation between employees
-
-  repeat 3 [ layout-spring (turtles with [any? link-neighbors]) links 0.4 6 1 ] ;; lays the nodes in a triangle
-  set budget initial-wage * count turtles
-
-end
 
 
 ;;;;; RUN ;;;;;
@@ -950,7 +920,7 @@ to go
       ; replace the old employee with new one
       if (sick-counter >= patience or low-performance-counter >= patience) [
 
-        ;there is a 30% probability that the comapny will find a replacemnt and the graph structure will not change
+        ;there is a 30% probability that the company will find a replacemnt and the graph structure will not change
         ifelse (random-float 1.0 < 0.7)
           [
             set number-of-employees-to-hire number-of-employees-to-hire + 1
@@ -1076,27 +1046,6 @@ to clear
   clear-all
 end
 
-to remove-node
-  ask turtles with [turtle-id = 4] [
-    leave-company
-  ]
-end
-
-to print-ids
-  ask turtles [
-    show who
-    show turtle-id
-  ]
-end
-
-to degrees
-  file-delete "degrees.txt"
-  file-open "degrees.txt"
-  ask turtles [
-    file-print count link-neighbors
-  ]
-  file-close
-end
 
 to-report degrees-simulation
   let turtle-degrees []
@@ -1117,6 +1066,7 @@ to reconnect-network
     set components nw:weak-component-clusters
   ]
 end
+
 
 to hire-new-employee
 
@@ -1325,57 +1275,6 @@ to update-generated-money-based-on-PD [ my-coef partner-coef ]
   ]
 end
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Centrality Measures
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-to betweenness
-  centrality [ -> nw:betweenness-centrality ]
-end
-
-to eigenvector
-  centrality [ -> nw:eigenvector-centrality ]
-end
-
-to closeness
-  centrality [ -> nw:closeness-centrality ]
-end
-
-; Takes a centrality measure as a reporter task, runs it for all nodes
-; and set labels, sizes and colors of turtles to illustrate result
-to centrality [ measure ]
-  nw:set-context turtles links
-  ask turtles [
-    let res (runresult measure) ; run the task for the turtle
-    ifelse is-number? res [
-      set label precision res 2
-      set size res ; this will be normalized later
-    ]
-    [ ; if the result is not a number, it is because eigenvector returned false (in the case of disconnected graphs
-      set label res
-      set size 1
-    ]
-  ]
-  normalize-sizes-and-colors
-end
-
-; We want the size of the turtles to reflect their centrality, but different measures
-; give different ranges of size, so we normalize the sizes according to the formula
-; below. We then use the normalized sizes to pick an appropriate color.
-to normalize-sizes-and-colors
-  if count turtles > 0 [
-    let sizes sort [ size ] of turtles ; initial sizes in increasing order
-    let delta last sizes - first sizes ; difference between biggest and smallest
-    ifelse delta = 0 [ ; if they are all the same size
-      ask turtles [ set size 1 ]
-    ]
-    [ ; remap the size to a range between 0.5 and 2.5
-      ask turtles [ set size ((size - first sizes) / delta) * 2 + 0.5 ]
-    ]
-    ask turtles [ set color scale-color red size 0 5 ] ; using a higher range max not to get too white...
-  ]
-end
 
 
 ;;;;; STRESS ;;;;;
@@ -2685,40 +2584,6 @@ NIL
 NIL
 1
 
-BUTTON
-1110
-825
-1240
-858
-NIL
-community-detection
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-836
-549
-1006
-582
-NIL
-zachary-karate-club\n
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 MONITOR
 835
 15
@@ -2786,12 +2651,12 @@ hiring-strategy
 0
 
 MONITOR
+1030
+750
+1165
 795
-745
-970
-790
-NIL
 total-fluctuation-loss
+precision total-fluctuation-loss 4
 17
 1
 11
@@ -2945,57 +2810,6 @@ precision (nw:modularity nw:louvain-communities) 4
 1
 11
 
-BUTTON
-993
-783
-1096
-818
-NIL
-eigenvector
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-994
-824
-1104
-859
-NIL
-betweenness
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-1103
-781
-1192
-816
-NIL
-closeness
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 CHOOSER
 1170
 585
@@ -3037,10 +2851,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-1265
-855
-1457
-888
+1250
+870
+1442
+903
 NIL
 export-network-structure
 NIL
@@ -3054,10 +2868,10 @@ NIL
 1
 
 BUTTON
-1265
-890
-1457
-923
+1250
+905
+1442
+938
 NIL
 import-network-structure\n
 NIL
@@ -3071,46 +2885,12 @@ NIL
 1
 
 BUTTON
-1665
-855
-1728
-888
+1445
+870
+1508
+903
 NIL
 clear\n
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-1460
-855
-1572
-888
-NIL
-remove-node
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-1575
-855
-1662
-888
-NIL
-print-ids
 NIL
 1
 T
@@ -3132,28 +2912,11 @@ temporal-network
 1
 -1000
 
-BUTTON
-1265
-940
-1342
-973
-NIL
-degrees\n
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 MONITOR
-1090
-940
-1227
-985
+1170
+750
+1307
+795
 NIL
 total-employees-left
 17
@@ -3161,10 +2924,10 @@ total-employees-left
 11
 
 MONITOR
-1090
-990
-1242
-1035
+1170
+800
+1305
+845
 NIL
 total-employees-hired
 17
