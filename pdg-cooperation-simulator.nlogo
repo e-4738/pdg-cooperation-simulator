@@ -331,15 +331,7 @@ to setup-nodes-barabasi-albert
 end
 
 
-;; Source of the basic algorithm: https://ccl.northwestern.edu/netlogo/community/Ising%20-%20Network.nlogo
-
-;; This code is borrowed from Lottery Example (in the Code Examples
-;; section of the Models Library).
-;; The idea behind the code is a bit tricky to understand.
-;; Basically we take the sum of the degrees (number of connections)
-;; of the turtles, and that's how many "tickets" we have in our lottery.
-;; Then we pick a random "ticket" (a random number).  Then we step
-;; through the turtles to figure out which node holds the winning ticket.
+; Source of the base algorithm: https://ccl.northwestern.edu/netlogo/community/Ising%20-%20Network.nlogo
 to-report find-partner-b-a [m]
   let partners []
 
@@ -351,7 +343,6 @@ to-report find-partner-b-a [m]
     let node-partner nobody
     ask turtles
     [ let nc (count link-neighbors)
-      ;; if there's no winner yet...
       if node-partner = nobody
       [ ifelse nc > total
         [ set node-partner self ]
@@ -411,7 +402,7 @@ to link-barabasi [partners]
     move-to partner-node
     fd 8
 
-    ;https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
+    ;triadic closure based on this paper: https://journals.aps.org/pre/abstract/10.1103/PhysRevE.65.026107
     let partner-node-neighbors [link-neighbors] of partner-node
     if count partner-node-neighbors >= 2 [
       if (random-float 1.0 < triadic-closure-probability) [
@@ -437,7 +428,6 @@ to-report find-partner-b-b [m agent-set]
     let node-partner nobody
     ask agent-set
     [ let nc (count link-neighbors) * fitness
-      ;; if there's no winner yet...
       if node-partner = nobody
       [ ifelse nc > total
         [ set node-partner self ]
@@ -531,7 +521,7 @@ to go
   let sum-own-performance sum [ own-performance ] of turtles
   ask turtles [
     ; set iniatial part of budget - it depends on the employee's performance
-    set initial-value own-performance * budget / sum-own-performance   ;initial value = salary
+    set initial-value own-performance * budget / sum-own-performance
   ]
 
   ; stress update
@@ -721,6 +711,7 @@ to go
 
     set sum-of-performance-new sum [ own-performance ] of turtles
     let sum-of-performance-new-increased sum [ own-performance ] of turtles with [ own-performance >= own-performance-old ]
+
 
     ;;; WAGE DISTRIBUTION STRATEGIES CHOOSER ;;;
     ; we may decide to apply different strategies on how to distribute money to employees
@@ -920,17 +911,30 @@ to go
       ; replace the old employee with new one
       if (sick-counter >= patience or low-performance-counter >= patience) [
 
-        ;there is a 30% probability that the company will find a replacemnt and the graph structure will not change
-        ifelse (random-float 1.0 < 0.7)
+        ifelse (random-float 1.0 < replacement-probability)
+          [ replace-employee ]
           [
             set number-of-employees-to-hire number-of-employees-to-hire + 1
             set total-employees-left total-employees-left + 1
             leave-company
           ]
-          [ replace-employee ]
       ]
     ]
   ]
+
+ ; firing of defectors
+ ;if (ticks mod 90 = 0 and ticks != 0)[
+ ;  repeat (count turtles * 0.05) [
+ ;      ask max-one-of turtles [ number-of-defects ] [
+ ;      ifelse (random-float 1.0 < replacement-probability)
+ ;        [ replace-employee ]
+ ;        [ set number-of-employees-to-hire number-of-employees-to-hire + 1
+ ;         set total-employees-left total-employees-left + 1
+ ;         leave-company
+ ;       ]
+ ;    ]
+ ;  ]
+ ; ]
 
   if number-of-employees-to-hire > 0 [
     repeat (number-of-employees-to-hire) [
@@ -986,13 +990,13 @@ to go
   ; fire by emplyees' productivity
   if (ticks mod 90 = 0 and hiring-decision-last-total-company-value > total-company-value and ticks != 0)[
     repeat (count turtles * firing-percentage / 4) [
-      ask min-one-of turtles [productivity] [
-        ifelse (random-float 1.0 < 0.7)
+      ask min-one-of turtles [ own-performance ] [
+        ifelse (random-float 1.0 < replacement-probability)
+          [ replace-employee ]
           [
             set total-employees-left total-employees-left + 1
             leave-company
           ]
-          [ replace-employee ]
       ]
     ]
     set hiring-decision-last-total-company-value total-company-value
@@ -1002,16 +1006,18 @@ to go
   if (ticks mod 90 = 0 and ticks != 0)[
     repeat (count turtles * attrition-percentage / 4) [
       ask one-of turtles [
-        ifelse (random-float 1.0 < 0.7)
-          [
-            set total-employees-left total-employees-left + 1
+        ifelse (random-float 1.0 < replacement-probability)
+          [ replace-employee ]
+          [ set total-employees-left total-employees-left + 1
             leave-company
           ]
-          [ replace-employee ]
       ]
     ]
   ]
 
+  ; emplyees might loose connection after pre-defined number of time (90-1500)
+  ; link will die
+  ; employees might search for new connection with certain probability (if they have other connections) or connect, if that would mean fragmentation of the network
   if temporal-network [
     ask links [
       set age age - 1
@@ -1020,8 +1026,13 @@ to go
         let node2 end2
         ask (turtle-set node1 node2) [
           if count link-neighbors = 1 or random-float 1 < 0.4 [
-            let connection-candidates-without-existing-neighbors other turtles with [not member? self link-neighbors]
-            link-barabasi find-partner-b-b 1 connection-candidates-without-existing-neighbors
+            if (hiring-strategy = "preferential") [
+              let connection-candidates-without-existing-neighbors other turtles with [not member? self link-neighbors]
+              link-barabasi find-partner-b-b 1 connection-candidates-without-existing-neighbors
+            ]
+            if (hiring-strategy = "random") [
+              create-link-with one-of other turtles
+            ]
           ]
         ]
         die
@@ -1029,6 +1040,7 @@ to go
     ]
   ]
 
+  setup-count-all-strategies
   reconnect-network
 
   tick
@@ -1053,7 +1065,7 @@ to-report degrees-simulation
   report turtle-degrees
 end
 
-
+; if the recovery strategies were not successful and network disjoints in multiple components, connect them based on possitive assortivity
 to reconnect-network
   let components nw:weak-component-clusters
   while [length components > 1] [
@@ -1087,9 +1099,6 @@ to hire-new-employee
     make-node-barabasi find-partner-b-b number-of-connections turtles
   ]
 
-  layout
-  setup-count-all-strategies
-
   let default-history []
   repeat length-of-partner-history + 1 [set default-history (fput false default-history)]
 
@@ -1104,6 +1113,8 @@ to hire-new-employee
     set partner-history-longer (lput false partner-history-longer)
   ]
 
+  set budget budget + initial-wage
+
   set total-company-value total-company-value - (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
   set total-fluctuation-loss total-fluctuation-loss + (penalisation-for-fluctuation * budget * boss-reaction-time / count turtles)
 
@@ -1111,6 +1122,8 @@ end
 
 
 to leave-company
+
+  set budget budget - (own-performance * budget / (sum [ own-performance ] of turtles))
 
   if (leave-strategy = "max-degree") [
     max-degree-recovery-strategy
@@ -1181,17 +1194,15 @@ end
 
 to replace-employee
 
+  set budget budget - (own-performance * budget / (sum [ own-performance ] of turtles)) + initial-wage
+  set budget budget + initial-wage
+
   let partner-history-length length partner-history
   let partner-history-longer-length length partner-history-longer
 
   setup-generate-strategy    ; set the strategy of the employee
   setup-generate-diligence   ; set the diligence of the employee
   setup-set-strategy-label   ; prints the label for each employee based on their strategy
-
-  ; count newly generated strategy
-  let index strategy-index strategy
-  let tmp-item item index count-strategies
-  set count-strategies (replace-item index count-strategies (tmp-item + 1))   ;;TODO CHECK
 
   setup-set-basic-values-for-employee
 
@@ -1383,13 +1394,13 @@ end
 ; Function sets the label for each employee based on their strategy
 to setup-set-strategy-label
   set label word turtle-id "  "
-  if strategy = "cooperate" [ set label "C  " ]
-  if strategy = "defect" [ set label "D  " ]
-  if strategy = "tit-for-tat" [ set label "T  " ]
-  if strategy = "tit-for-tat-npm" [ set label "nT  " ]
-  if strategy = "unforgiving" [ set label "U  " ]
-  if strategy = "pavlov" [ set label "P  " ]
-  if strategy = "tit-for-two-tats" [ set label "T2  " ]
+  ;if strategy = "cooperate" [ set label "C  " ]
+  ;if strategy = "defect" [ set label "D  " ]
+  ;if strategy = "tit-for-tat" [ set label "T  " ]
+  ;if strategy = "tit-for-tat-npm" [ set label "nT  " ]
+  ;if strategy = "unforgiving" [ set label "U  " ]
+  ;if strategy = "pavlov" [ set label "P  " ]
+  ;if strategy = "tit-for-two-tats" [ set label "T2  " ]
 end
 
 ; This function selects action based on the employee's strategy
@@ -1403,19 +1414,22 @@ to do-resolve-PD-action-this-round
   if strategy = "pavlov" [ pavlov ]
 end
 
-; This function resolves the case if employee have Pavlov strategy
-; if 3 or 5 my response is the same, if not I change my behaviour
-to pavlov
-  set partner-defected? [defect-now?] of partner
-
-  if not is-boolean? partner-defected? [ set partner-defected? false ]
-  if not is-boolean? defect-now? [ set defect-now? false ] ; check if defect-now? and
-                                                           ; partner-defected? variables are already set
-
-  ifelse partner-defected?
-  [ set defect-now? not defect-now? ] ; partner defected
-  [ set defect-now? defect-now? ]     ; partner cooperated
+to random-strategy
+  ifelse random-float 1.0 < 0.5
+    [ set defect-now? true ]
+    [ set defect-now? false ]
 end
+
+; This function resolves the case if employee have Pavlov strategy
+to pavlov
+  let last-game-partner-defection? item partner-id partner-history
+  let last-game-my-defection? item turtle-id [ partner-history ] of partner
+
+  ifelse last-game-partner-defection?
+    [ set defect-now? not last-game-my-defection? ]
+    [ set defect-now? last-game-my-defection? ]
+end
+
 
 ; This function resolves the case if employee have Tit For Two Tats strategy
 to tit-for-two-tats
@@ -1802,7 +1816,7 @@ stress-regen
 stress-regen
 0
 2
-1.25
+1.225
 0.025
 1
 NIL
@@ -2221,7 +2235,7 @@ wiring-probability-inside-community
 wiring-probability-inside-community
 0
 1
-0.1
+0.15
 0.01
 1
 NIL
@@ -2619,7 +2633,7 @@ wiring-probability-outside-community
 wiring-probability-outside-community
 0
 1
-0.05
+0.15
 0.01
 1
 NIL
@@ -2800,10 +2814,10 @@ Network Analysis Attributes
 1
 
 MONITOR
-792
-931
-1045
-976
+793
+926
+1046
+971
 nw:modularity nw:louvain-communities
 precision (nw:modularity nw:louvain-communities) 4
 17
@@ -2908,7 +2922,7 @@ SWITCH
 743
 temporal-network
 temporal-network
-0
+1
 1
 -1000
 
@@ -2948,6 +2962,32 @@ community-aware-preferential-connection-limit
 1
 NIL
 HORIZONTAL
+
+SLIDER
+835
+705
+1010
+738
+replacement-probability
+replacement-probability
+0
+1
+0.3
+0.01
+1
+NIL
+HORIZONTAL
+
+MONITOR
+965
+750
+1022
+795
+NIL
+budget
+17
+1
+11
 
 @#$#@#$#@
 # Should the Boss be Nice? How Strategy of Hubs Influence Cooperation and Organizational Performance on Complex Networks 
@@ -4718,6 +4758,330 @@ NetLogo 6.4.0
     </enumeratedValueSet>
     <enumeratedValueSet variable="temporal-network">
       <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="effort-stress-increase">
+      <value value="0.53"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="sick-slider">
+      <value value="7"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="cooperate-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mean-value-productivity">
+      <value value="3.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="triadic-closure-probability">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-of-communities">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-two-tats-strategy">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tft-npm-peace-probability">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="max-effort-change">
+      <value value="0.15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num-nodes">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-tat-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-of-connections">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mean-value-stress-limit">
+      <value value="300"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="company-value-random" repetitions="40" runMetricsEveryStep="false">
+    <setup>setup-stochastic-block</setup>
+    <go>go</go>
+    <exitCondition>ticks = 2500</exitCondition>
+    <metric>total-company-value</metric>
+    <enumeratedValueSet variable="defect-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="rewiring-probability">
+      <value value="0.01"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hub-strategy">
+      <value value="&quot;default&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wage-distribution-strategy">
+      <value value="&quot;increasing-own-perf&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="attrition-percentage">
+      <value value="0.15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="maximal-budget">
+      <value value="15000"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="evaluation-stress-change">
+      <value value="0.9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="firing-percentage">
+      <value value="0.15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-reaction-intensity">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-cooperation-probability">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="stress-regen">
+      <value value="1.25"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wiring-probability-outside-community">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="unforgiving-strategy">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="penalisation-for-fluctuation">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="sickness-probability">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-performance">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wiring-probability-inside-community">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="stress-modification-on-PD">
+      <value value="0.045"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="budget-change">
+      <value value="0.001"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="community-radius">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="leave-strategy">
+      <value value="&quot;mixed&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-cooperation-part">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="minimal-budget">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="performance-lower-limit">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-reaction-time">
+      <value value="30"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="cooperation-part">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="pavlov-strategy">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="community-aware-preferential-connection-limit">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="fixed-budget-change">
+      <value value="0.001"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="std-deviation-productivity">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="patience">
+      <value value="12"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="local-random-probability">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="initial-wage">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="performance-upper-limit">
+      <value value="200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hiring-strategy">
+      <value value="&quot;random&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-tat-npm-strategy">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hiring-percentage">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="std-deviation-stress-limit">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="temporal-network">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="effort-stress-increase">
+      <value value="0.53"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="sick-slider">
+      <value value="7"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="cooperate-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mean-value-productivity">
+      <value value="3.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="triadic-closure-probability">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-of-communities">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-two-tats-strategy">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tft-npm-peace-probability">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="max-effort-change">
+      <value value="0.15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="num-nodes">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-tat-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="number-of-connections">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mean-value-stress-limit">
+      <value value="300"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="company-value-preferential" repetitions="40" runMetricsEveryStep="false">
+    <setup>setup-bianconi-barabasi</setup>
+    <go>go</go>
+    <exitCondition>ticks = 2500</exitCondition>
+    <metric>total-company-value</metric>
+    <enumeratedValueSet variable="defect-strategy">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="rewiring-probability">
+      <value value="0.01"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hub-strategy">
+      <value value="&quot;default&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wage-distribution-strategy">
+      <value value="&quot;increasing-own-perf&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="attrition-percentage">
+      <value value="0.15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="maximal-budget">
+      <value value="15000"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="evaluation-stress-change">
+      <value value="0.9"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="firing-percentage">
+      <value value="0.15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-reaction-intensity">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-cooperation-probability">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="stress-regen">
+      <value value="1.25"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wiring-probability-outside-community">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="unforgiving-strategy">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="penalisation-for-fluctuation">
+      <value value="3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="sickness-probability">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-performance">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="wiring-probability-inside-community">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="stress-modification-on-PD">
+      <value value="0.045"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="budget-change">
+      <value value="0.001"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="community-radius">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="leave-strategy">
+      <value value="&quot;mixed&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-insight-cooperation-part">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="minimal-budget">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="performance-lower-limit">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="boss-reaction-time">
+      <value value="30"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="cooperation-part">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="pavlov-strategy">
+      <value value="0.05"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="community-aware-preferential-connection-limit">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="fixed-budget-change">
+      <value value="0.001"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="std-deviation-productivity">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="patience">
+      <value value="12"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="local-random-probability">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="initial-wage">
+      <value value="100"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="performance-upper-limit">
+      <value value="200"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hiring-strategy">
+      <value value="&quot;preferential&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="tit-for-tat-npm-strategy">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="hiring-percentage">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="std-deviation-stress-limit">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="temporal-network">
+      <value value="false"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="effort-stress-increase">
       <value value="0.53"/>
